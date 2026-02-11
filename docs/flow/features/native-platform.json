@@ -1,0 +1,210 @@
+{
+  "feature_id": "native-platform",
+  "title": "macOS Native Platform",
+  "type": "feature",
+  "status": "approved",
+  "priority": "critical",
+  "scope": "platform",
+  "owner_role": "architect",
+  "dependencies": [],
+  "summary": {
+    "goal": "Establish the native macOS application foundation using Swift, AppKit, TextKit 2, and Xcode targeting macOS 2025+",
+    "description": "The app must be a native macOS application. User confirmed: native Swift.\n\n## Target Platform\n- macOS 2025 and newer (Sequoia+)\n- Access to latest frameworks and APIs\n- No need for backward compatibility with older macOS versions\n\n## Technology Stack\n- **Language**: Swift (user confirmed)\n- **UI Framework**: SwiftUI or AppKit (or hybrid)\n- **Markdown Parser**: swift-markdown or cmark-gfm Swift bindings\n- **Rendering**: TextKit 2 + NSTextView (not WKWebView)\n- **Syntax Highlighting**: Tree-sitter, Splash, or Highlightr (open source, minimal, fast)\n- **Build**: Xcode\n\n## macOS Integration Points\n- UTI registration for .md, .markdown, .mdown, .mkd file types\n- NSDocument or custom document handling\n- NSAppearance observation for theme switching\n- Launch Services for \"Open In...\" functionality (shows list of available apps - user wants choice between Xcode, Cursor, Windsurf, etc.)\n- Standard macOS keyboard shortcuts (Cmd+W close, Cmd+Q quit)\n- Retina/HiDPI support\n\n## Distribution\n- Direct download (DMG) initially\n- Mac App Store as future option\n- Code signing and notarization required for direct download",
+    "acceptance_criteria": [
+      {
+        "id": "swift-native",
+        "description": "Written in Swift using native macOS frameworks"
+      },
+      {
+        "id": "textkit2-integration",
+        "description": "Uses TextKit 2 + NSTextView for rendering (not WKWebView)"
+      },
+      {
+        "id": "macos-integration",
+        "description": "Proper UTI registration, NSAppearance, Launch Services integration"
+      },
+      {
+        "id": "build-system",
+        "description": "Builds successfully in Xcode with proper code signing"
+      }
+    ]
+  },
+  "understanding": {
+    "architect": {
+      "observations": [
+        "macOS 2025+ target — access to latest frameworks, no backward compat needed",
+        "Swift confirmed by user",
+        "TextKit 2 + NSTextView for rendering — not WKWebView",
+        "cmark-gfm for markdown parsing (C with Swift bindings)",
+        "TreeSitter recommended for syntax highlighting",
+        "UTI registration for .md, .markdown, .mdown, .mkd",
+        "Distribution via DMG with code signing and notarization"
+      ],
+      "confidence": "high"
+    }
+  },
+  "context": {
+    "architect": {
+      "language": "Swift",
+      "target": "macOS 2025+ (Sequoia+)",
+      "ui_framework": "AppKit (primary) with possible SwiftUI hybrid",
+      "rendering": "TextKit 2 + NSTextView",
+      "markdown_parser": "cmark-gfm (C with Swift bindings)",
+      "syntax_highlighting": "TreeSitter (recommended)",
+      "build": "Xcode",
+      "distribution": "DMG with code signing and notarization"
+    }
+  },
+  "plan_implementation": {
+    "scopes": ["platform"],
+    "steps": [
+      {
+        "step_id": "np-i001",
+        "title": "Create Xcode project with AppKit lifecycle",
+        "scope": "platform",
+        "description": "Create a new macOS AppKit application project in Xcode. Use the traditional AppDelegate lifecycle (not SwiftUI App protocol) for maximum control over launch timing. Set deployment target to macOS 15.0 (Sequoia). Configure the project with a minimal Info.plist. Remove any storyboard references — window creation will be done programmatically for performance. Set the principal class to NSApplication.",
+        "dependencies": [],
+        "owner_role": "platform:Architect",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Xcode project compiles and launches as a macOS app with no UI" },
+          { "id": "ac2", "description": "Deployment target is macOS 15.0+" },
+          { "id": "ac3", "description": "AppDelegate handles applicationWillFinishLaunching and applicationDidFinishLaunching" },
+          { "id": "ac4", "description": "No storyboard — all UI created programmatically" }
+        ],
+        "specification": {
+          "architecture": {
+            "pattern": "AppDelegate lifecycle (not SwiftUI App)",
+            "rationale": "Maximum control over launch timing and window management for sub-200ms target",
+            "project_structure": "ViewMD/ with Engine/, UI/, Platform/ subdirectories matching catalog components"
+          }
+        }
+      },
+      {
+        "step_id": "np-i002",
+        "title": "Configure UTI registration for markdown file types",
+        "scope": "platform",
+        "description": "Register the app as a handler for markdown file types in Info.plist. Define imported UTI declarations for public.markdown (if not already in system) and configure document types for .md, .markdown, .mdown, .mkd extensions. Use CFBundleDocumentTypes and UTImportedTypeDeclarations. The app should appear in Finder's 'Open With' menu for these file types after installation.",
+        "dependencies": ["np-i001"],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Info.plist declares CFBundleDocumentTypes for .md, .markdown, .mdown, .mkd" },
+          { "id": "ac2", "description": "UTI declarations cover public.markdown and any custom conforming types" },
+          { "id": "ac3", "description": "App appears in Finder 'Open With' for .md files after build" }
+        ],
+        "specification": {
+          "architecture": {
+            "uti_types": ["public.markdown"],
+            "extensions": [".md", ".markdown", ".mdown", ".mkd"],
+            "role": "Viewer"
+          }
+        }
+      },
+      {
+        "step_id": "np-i003",
+        "title": "Implement file-open event handling via NSApplicationDelegate",
+        "scope": "platform",
+        "description": "Implement application(_:open:) in AppDelegate to receive file URLs from macOS Launch Services when files are opened via Finder. Register for the open-file event in applicationWillFinishLaunching (before applicationDidFinishLaunching) to ensure the file URL is captured immediately. Store the URL and pass it to window creation. Handle the case where the app is already running and a new file is opened (opens additional window).",
+        "dependencies": ["np-i001"],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "AppDelegate receives file URLs via application(_:open:)" },
+          { "id": "ac2", "description": "File URL captured in applicationWillFinishLaunching for cold start" },
+          { "id": "ac3", "description": "Opening a second file while app is running creates a new window" },
+          { "id": "ac4", "description": "Drag-and-drop onto Dock icon triggers the same open handler" }
+        ],
+        "specification": {
+          "architecture": {
+            "pattern": "NSApplicationDelegate file handling",
+            "cold_start_flow": "applicationWillFinishLaunching -> register open handler -> applicationDidFinishLaunching -> create window if URL available",
+            "warm_start_flow": "application(_:open:) -> create new window with URL"
+          }
+        }
+      },
+      {
+        "step_id": "np-i004",
+        "title": "Add cmark-gfm as Swift Package dependency",
+        "scope": "platform",
+        "description": "Add cmark-gfm C library as a Swift Package Manager dependency. Use a well-maintained Swift wrapper (e.g., swift-cmark or a direct C binding via a bridging header/module map). Verify the package compiles and can parse a simple markdown string to AST nodes. Ensure the dependency is statically linked for launch performance.",
+        "dependencies": ["np-i001"],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "cmark-gfm added as SPM dependency and compiles cleanly" },
+          { "id": "ac2", "description": "Swift code can call cmark_parse_document() and iterate AST nodes" },
+          { "id": "ac3", "description": "GFM extensions enabled (tables, autolinks, strikethrough, task lists)" },
+          { "id": "ac4", "description": "Dependency is statically linked (verified in build settings)" }
+        ],
+        "specification": {
+          "architecture": {
+            "parser": "cmark-gfm via SPM",
+            "linking": "static (avoid dyld overhead)",
+            "gfm_extensions": ["table", "autolink", "strikethrough", "tasklist", "tagfilter"]
+          }
+        }
+      },
+      {
+        "step_id": "np-i005",
+        "title": "Create basic NSWindow with NSTextView using TextKit 2",
+        "scope": "platform",
+        "description": "Create a programmatic NSWindow containing an NSScrollView wrapping an NSTextView configured for TextKit 2. The NSTextView must use NSTextLayoutManager (TextKit 2) not the legacy NSLayoutManager. Configure the text view as non-editable, selectable, with rich text enabled. Set up the scroll view with proper autoresizing. The window should display standard macOS chrome (traffic light buttons, title bar). This is the foundational view container that all other features build upon.",
+        "dependencies": ["np-i001"],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "NSWindow created programmatically with standard chrome (title bar, traffic lights)" },
+          { "id": "ac2", "description": "NSTextView uses NSTextLayoutManager (TextKit 2), NOT NSLayoutManager" },
+          { "id": "ac3", "description": "Text view is non-editable and selectable" },
+          { "id": "ac4", "description": "NSScrollView wraps the text view with proper autoresizing" },
+          { "id": "ac5", "description": "Window title shows filename from opened file" }
+        ],
+        "specification": {
+          "architecture": {
+            "view_hierarchy": "NSWindow > NSScrollView > NSTextView (TextKit 2)",
+            "text_view_config": "non-editable, selectable, richText, usesTextLayoutManager = true",
+            "window_style": ".titled, .closable, .miniaturizable, .resizable"
+          }
+        }
+      },
+      {
+        "step_id": "np-i006",
+        "title": "Implement basic file reading and display pipeline",
+        "scope": "platform",
+        "description": "Wire together file opening, markdown parsing, and display as a minimal end-to-end proof. When a file URL is received: (1) read file contents as String, (2) parse with cmark-gfm to get AST, (3) convert AST to a basic NSAttributedString (plain text with heading sizes for now), (4) set on NSTextView's textContentStorage. This validates the full path from Finder to rendered content works. Performance optimization comes in the pipeline feature — this just proves the architecture.",
+        "dependencies": ["np-i003", "np-i004", "np-i005"],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Opening a .md file from Finder displays its content in the window" },
+          { "id": "ac2", "description": "Headings render at different sizes (basic styled output, not raw markdown)" },
+          { "id": "ac3", "description": "File content is parsed by cmark-gfm, not displayed as raw text" },
+          { "id": "ac4", "description": "Multiple files can be opened simultaneously in separate windows" }
+        ],
+        "specification": {
+          "architecture": {
+            "flow": "File URL -> String(contentsOf:) -> cmark_parse_document() -> AST walk -> NSAttributedString -> NSTextContentStorage",
+            "note": "This is the minimal proof-of-concept path. The pipeline feature will optimize this into staged background processing."
+          }
+        }
+      },
+      {
+        "step_id": "np-i007",
+        "title": "Configure code signing and entitlements",
+        "scope": "platform",
+        "description": "Set up code signing configuration in Xcode for both development and distribution. Create a hardened runtime entitlements file. Enable notarization-compatible settings. Configure the app sandbox entitlements for file read access (com.apple.security.files.user-selected.read-only). No network entitlement needed initially (remote images come later in assets feature).",
+        "dependencies": ["np-i001"],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "App builds with code signing in both Debug and Release configurations" },
+          { "id": "ac2", "description": "Hardened runtime enabled for notarization compatibility" },
+          { "id": "ac3", "description": "Entitlements file includes read-only file access" },
+          { "id": "ac4", "description": "App sandbox configured appropriately" }
+        ],
+        "specification": {
+          "security": {
+            "hardened_runtime": true,
+            "sandbox": true,
+            "entitlements": ["com.apple.security.files.user-selected.read-only"],
+            "notarization": "Required for direct download distribution"
+          }
+        }
+      }
+    ]
+  }
+}

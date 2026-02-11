@@ -1,0 +1,166 @@
+{
+  "feature_id": "cold-start",
+  "title": "Launch Time Optimization",
+  "type": "feature",
+  "status": "approved",
+  "priority": "high",
+  "scope": "platform",
+  "owner_role": "coder",
+  "dependencies": ["launch", "pipeline"],
+  "summary": {
+    "goal": "Achieve sub-200ms launch-to-readable-content through careful optimization of the cold start path with measured phase budgets",
+    "description": "Achieving sub-200ms launch-to-readable-content requires careful optimization of the cold start path.\n\n## Cold Start Budget Breakdown (200ms total)\n\n| Phase | Budget | What Happens |\n|-------|--------|-------------|\n| Process launch | ~30ms | dyld loads binary, system frameworks |\n| AppDelegate init | ~10ms | Minimal setup, register for open-file |\n| Receive file URL | ~5ms | macOS delivers open-file event |\n| Start background parse | ~1ms | Dispatch cmark-gfm on background queue |\n| Window + view creation | ~30ms | NSWindow, NSScrollView, NSTextView |\n| Parse first chunk | ~20ms | Parse first ~10KB of markdown |\n| Style + layout first screen | ~40ms | AttributedString + TextKit layout |\n| First paint | ~15ms | Core Animation composites to screen |\n| **Total first paint** | **~151ms** | Content visible to user |\n| Background: parse remainder | continues | Remaining file parsed progressively |\n\n## Optimization Techniques\n\n### Binary Size\n- No unnecessary frameworks linked\n- Strip debug symbols in release\n- Static linking preferred (avoids dyld overhead)\n- Target: < 5MB binary\n\n### App Lifecycle\n- applicationWillFinishLaunching → register for file open events\n- applicationDidFinishLaunching → minimal (no expensive setup)\n- Do NOT eagerly load theme gallery, preferences, or non-essential UI\n- Theme for current system appearance preloaded; other variant deferred\n\n### Warm Launch (App Already Running)\n- If app process is alive (dock icon, another window open), new file opens in ~50ms\n- Only need: new window + parse + render\n- No process startup overhead\n\n### Pre-warming (Stretch Goal)\n- macOS Launch Services can keep lightweight processes warm\n- After quit, system may keep binary in disk cache\n- Consider: leave minimal background process (< 2MB RSS) for near-instant relaunch\n- Trade-off: user explicitly wants app to quit — this conflicts\n\n## Measurement\n- Instrument with os_signpost for each phase\n- Profile with Instruments → App Launch template\n- CI benchmark: fail build if launch exceeds 250ms on reference hardware\n- Real-world test on oldest supported Mac hardware",
+    "acceptance_criteria": [
+      {
+        "id": "launch-budget",
+        "description": "Stays within 200ms total launch-to-readable-content budget"
+      },
+      {
+        "id": "binary-optimization",
+        "description": "Binary size under 5MB with minimal framework dependencies"
+      },
+      {
+        "id": "lazy-initialization",
+        "description": "Only essential components loaded at launch"
+      },
+      {
+        "id": "performance-monitoring",
+        "description": "os_signpost instrumentation for launch phase measurement"
+      }
+    ]
+  },
+  "understanding": {
+    "architect": {
+      "observations": [
+        "Cold start budget: 151ms estimated for first paint (within 200ms target)",
+        "Static linking preferred to avoid dyld overhead",
+        "applicationWillFinishLaunching for file open events — minimal setup",
+        "Theme gallery and preferences lazily loaded",
+        "Warm launch (app already running) targets ~50ms"
+      ],
+      "concerns": [
+        "Pre-warming conflicts with user's 'quit on last window close' requirement",
+        "CI benchmarking on reference hardware needed"
+      ],
+      "confidence": "high"
+    },
+    "performance": {
+      "observations": [
+        "Phase budget: process launch 30ms, window creation 30ms, parse 20ms, style+layout 40ms, paint 15ms",
+        "os_signpost instrumentation for each phase",
+        "Profile with Instruments App Launch template",
+        "CI benchmark: fail if > 250ms"
+      ],
+      "confidence": "high"
+    }
+  },
+  "context": {
+    "architect": {
+      "budget_breakdown": {
+        "process_launch": "~30ms",
+        "app_delegate_init": "~10ms",
+        "receive_file_url": "~5ms",
+        "start_background_parse": "~1ms",
+        "window_view_creation": "~30ms",
+        "parse_first_chunk": "~20ms",
+        "style_layout_first_screen": "~40ms",
+        "first_paint": "~15ms",
+        "total": "~151ms"
+      },
+      "binary_target": "< 5MB",
+      "warm_launch_target": "~50ms"
+    }
+  },
+  "plan_implementation": {
+    "scopes": ["platform", "engine"],
+    "steps": [
+      {
+        "step_id": "cs-i001",
+        "title": "Add os_signpost instrumentation to all launch phases",
+        "scope": "platform",
+        "description": "Instrument the entire launch path with os_signpost for precise measurement. Add signposts at: (1) AppDelegate init start, (2) applicationWillFinishLaunching entry/exit, (3) applicationDidFinishLaunching entry/exit, (4) file URL received, (5) background parse dispatched, (6) window creation start/end, (7) first chunk parsed, (8) first chunk styled, (9) first layout complete, (10) first paint (via CATransaction.setCompletionBlock or similar). Use a dedicated OSLog subsystem (com.viewmd.launch) and category (performance).",
+        "dependencies": [],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "os_signpost intervals cover all 8 launch phases" },
+          { "id": "ac2", "description": "Visible in Instruments App Launch template" },
+          { "id": "ac3", "description": "Dedicated OSLog subsystem and category for launch performance" },
+          { "id": "ac4", "description": "Total launch time measurable from signpost data" }
+        ],
+        "specification": {
+          "architecture": {
+            "subsystem": "com.viewmd.launch",
+            "category": "performance",
+            "signposts": ["app_init", "will_finish_launching", "did_finish_launching", "file_received", "parse_dispatched", "window_created", "first_chunk_parsed", "first_chunk_styled", "first_layout", "first_paint"],
+            "api": "os_signpost(.begin/.end) for intervals, .event for points"
+          }
+        }
+      },
+      {
+        "step_id": "cs-i002",
+        "title": "Audit and minimize launch-path initialization",
+        "scope": "platform",
+        "description": "Review all code that runs between process start and first paint. Move everything non-essential to lazy initialization. Specifically: (1) ThemeManager loads ONLY the current theme in the current system appearance at launch — other themes and the alternate appearance variant load lazily; (2) Settings/Preferences UI is NOT instantiated at launch; (3) No image cache pre-warming at launch; (4) TreeSitter grammars loaded lazily per-language on first use, not all at startup. Profile with Instruments to verify each phase stays within budget.",
+        "dependencies": ["cs-i001"],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Only current theme + current appearance loaded at launch" },
+          { "id": "ac2", "description": "Settings UI not instantiated until first Cmd+, press" },
+          { "id": "ac3", "description": "TreeSitter grammars loaded lazily per-language" },
+          { "id": "ac4", "description": "Total launch-path init time under 20ms (excluding window and render)" }
+        ],
+        "specification": {
+          "architecture": {
+            "lazy_items": ["Alternate appearance variant", "Settings window", "Theme gallery previews", "TreeSitter grammars (per-language)", "Image cache"],
+            "eager_items": ["Current theme in current appearance", "File open handler", "WindowManager"]
+          }
+        }
+      },
+      {
+        "step_id": "cs-i003",
+        "title": "Optimize binary size and linking configuration",
+        "scope": "platform",
+        "description": "Configure Xcode build settings to minimize binary size and dyld loading time. Enable: (1) Strip Swift symbols in release; (2) Dead code stripping; (3) Link Time Optimization (LTO) for release builds; (4) Static linking for SPM dependencies (cmark-gfm, TreeSitter); (5) Verify no unnecessary system frameworks linked (remove any auto-linked frameworks that are not used). Target binary size under 5MB.",
+        "dependencies": [],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Release binary under 5MB" },
+          { "id": "ac2", "description": "SPM dependencies statically linked" },
+          { "id": "ac3", "description": "LTO enabled for release builds" },
+          { "id": "ac4", "description": "Dead code stripping enabled" },
+          { "id": "ac5", "description": "No unnecessary framework dependencies" }
+        ],
+        "specification": {
+          "architecture": {
+            "build_settings": {
+              "SWIFT_COMPILATION_MODE": "wholemodule (release)",
+              "DEAD_CODE_STRIPPING": "YES",
+              "STRIP_INSTALLED_PRODUCT": "YES",
+              "LLVM_LTO": "YES (release)",
+              "SWIFT_OPTIMIZATION_LEVEL": "-O (release)"
+            }
+          }
+        }
+      },
+      {
+        "step_id": "cs-i004",
+        "title": "Implement warm-launch fast path",
+        "scope": "engine",
+        "description": "Optimize the path when the app is already running and a new file is opened. In this case, process startup is skipped — only need: allocate window, start parse, render first screen. Target ~50ms. The PipelineCoordinator should have a fast path that reuses the already-loaded ThemeManager and TreeSitter instances. Window creation should be as lean as possible — reuse cached NSTextView configuration if feasible.",
+        "dependencies": ["cs-i001"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "New file opens in under 50ms when app is already running" },
+          { "id": "ac2", "description": "ThemeManager and TreeSitter instances reused, not re-created" },
+          { "id": "ac3", "description": "Window creation path is minimal (no redundant setup)" }
+        ],
+        "specification": {
+          "architecture": {
+            "reuse": ["ThemeManager (singleton)", "TreeSitter language parsers (cached)", "URLSession configuration"],
+            "fast_path": "WindowManager.openFile(url:) -> new window -> pipeline.start() -> display"
+          }
+        }
+      }
+    ]
+  }
+}

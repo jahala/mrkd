@@ -1,0 +1,157 @@
+{
+  "project": {
+    "name": "ViewMD",
+    "description": "Native macOS markdown viewer app that opens instantly from Finder with minimal UI and beautiful rendering",
+    "version": "1.0.0"
+  },
+  "status": "approved",
+  "source": {
+    "type": "plan",
+    "plan_id": "4ef78639-f5e3-47c4-b17f-f789bbe3c06f",
+    "plan_version": 58,
+    "approved_by": "Jahala",
+    "approved_at": "2026-02-08T01:49:09.659Z"
+  },
+  "understanding": {
+    "facilitator": {
+      "goals": {
+        "primary": "Create a macOS application capable of reading markdown files",
+        "emphasis": "Handle both small and large files efficiently"
+      },
+      "constraints": {
+        "platform": "macOS native application",
+        "performance": "Must handle large markdown files without performance issues"
+      },
+      "requirements": {
+        "functional": [
+          "Read and display markdown content",
+          "Handle files of varying sizes",
+          "Native macOS integration"
+        ],
+        "non_functional": [
+          "Memory efficiency for large files",
+          "Responsive rendering",
+          "Fast file loading"
+        ]
+      },
+      "technical_implications": {
+        "architecture": "Need streaming or chunked reading for large files",
+        "ui_framework": "Likely AppKit or SwiftUI for native macOS feel",
+        "memory_management": "Critical for handling large files"
+      }
+    },
+    "architect": {
+      "image_loading_strategy": "Placeholder first, lazy-load remote images in background. Only animate GIFs in viewport, pause when scrolled away.",
+      "svg_rendering": "NSImage native SVG rendering — simplest path, vector-crisp. Ignore embedded JS, render static content only.",
+      "image_sizing": "Scale to fit content width preserving aspect ratio. Never wider than content area, no horizontal scroll. Use markdown/HTML dimensions if specified.",
+      "image_cache": "Disk cache with max-size cap and TTL of a few days. Auto-expiring. Separate from app state — more like a browser cache.",
+      "animated_gifs": "Lazy load, play only when in viewport, pause when scrolled away to preserve near-zero idle CPU."
+    },
+    "designer": {
+      "rendering_clarity": "Full markdown rendering - user wants to see formatted output (headings as headings, bold as bold, etc.) NOT raw markdown source. This is a viewer, not an editor.",
+      "code_highlighting": "Need syntax highlighting for popular languages - can leverage open source solutions like highlight.js or similar fast libraries",
+      "visual_approach": "Terminal themes will work well with both rendered markdown AND syntax-highlighted code blocks"
+    },
+    "performance": {
+      "performance_targets": {
+        "launch_time": "Native Swift performance - millisecond launches",
+        "file_processing": "Handle any markdown file size swiftly",
+        "rendering": "Intelligent loading for large files"
+      },
+      "technical_approach": {
+        "framework": "Native Swift/SwiftUI for maximum performance",
+        "file_handling": "Streaming/lazy loading for large documents",
+        "markdown_processing": "Full CommonMark spec support with syntax highlighting"
+      },
+      "optimization_strategy": {
+        "memory_efficient": "Load only visible content",
+        "caching": "Smart pre-parsing where beneficial",
+        "system_resources": "Minimal footprint, multiple windows supported"
+      }
+    }
+  },
+  "context": {
+    "platform": {
+      "target": "macOS 2025+ (Sequoia+)",
+      "language": "Swift",
+      "ui_framework": "AppKit (NSTextView + TextKit 2)",
+      "rendering": "TextKit 2 + NSTextLayoutManager (NOT WKWebView)",
+      "markdown_parser": "cmark-gfm (C with Swift bindings)",
+      "syntax_highlighting": "TreeSitter (recommended), Splash, or Highlightr",
+      "build_system": "Xcode",
+      "distribution": "Direct download (DMG), code signed and notarized"
+    },
+    "design": {
+      "philosophy": "Preview.app-like simplicity tuned for markdown",
+      "typography": "Monospace fonts throughout (SF Mono, Menlo, Fira Code, JetBrains Mono, IBM Plex Mono)",
+      "themes": "Terminal-inspired (Solarized, Monokai, etc.) with light/dark variants",
+      "appearance": "Follows macOS system light/dark mode automatically"
+    },
+    "performance_budgets": {
+      "launch_to_content": "< 200ms for typical files",
+      "scroll_fps": "60fps minimum",
+      "binary_size": "< 5MB",
+      "memory_small_files": "~5MB",
+      "memory_medium_files": "~15-30MB",
+      "memory_large_files": "~50-80MB",
+      "memory_very_large": "~80-120MB hard cap"
+    }
+  },
+  "components": [
+    {
+      "id": "engine",
+      "name": "Rendering Engine",
+      "tech": ["Swift", "cmark-gfm", "TextKit 2", "TreeSitter"],
+      "path": "ViewMD/Engine/",
+      "description": "Markdown parsing, AST processing, syntax highlighting, and rendering pipeline"
+    },
+    {
+      "id": "appkit",
+      "name": "AppKit UI Layer",
+      "tech": ["Swift", "AppKit", "NSTextView"],
+      "path": "ViewMD/UI/",
+      "description": "Window management, themes, settings, menus, and accessibility"
+    },
+    {
+      "id": "platform",
+      "name": "macOS Platform Integration",
+      "tech": ["Swift", "AppKit", "Launch Services"],
+      "path": "ViewMD/Platform/",
+      "description": "UTI registration, file handling, system integration, launch optimization"
+    }
+  ],
+  "epics": [
+    {
+      "id": "core-engine",
+      "name": "Core Rendering Engine",
+      "features": ["pipeline", "render", "assets", "performance"]
+    },
+    {
+      "id": "platform-integration",
+      "name": "macOS Platform Integration",
+      "features": ["native-platform", "launch", "system-integration", "cold-start"]
+    },
+    {
+      "id": "ui-experience",
+      "name": "UI & User Experience",
+      "features": ["ui", "themes", "window-sizing", "user-flow", "preferences-ui", "menu-bar", "accessibility"]
+    }
+  ],
+  "features": [
+    { "id": "launch", "file": "features/launch.json" },
+    { "id": "ui", "file": "features/ui.json" },
+    { "id": "themes", "file": "features/themes.json" },
+    { "id": "system-integration", "file": "features/system-integration.json" },
+    { "id": "render", "file": "features/render.json" },
+    { "id": "performance", "file": "features/performance.json" },
+    { "id": "native-platform", "file": "features/native-platform.json" },
+    { "id": "window-sizing", "file": "features/window-sizing.json" },
+    { "id": "user-flow", "file": "features/user-flow.json" },
+    { "id": "pipeline", "file": "features/pipeline.json" },
+    { "id": "cold-start", "file": "features/cold-start.json" },
+    { "id": "assets", "file": "features/assets.json" },
+    { "id": "accessibility", "file": "features/accessibility.json" },
+    { "id": "preferences-ui", "file": "features/preferences-ui.json" },
+    { "id": "menu-bar", "file": "features/menu-bar.json" }
+  ]
+}

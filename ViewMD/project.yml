@@ -1,0 +1,41 @@
+name: mrkd
+options:
+  bundleIdPrefix: com.mrkd
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+
+packages:
+  swift-cmark:
+    url: https://github.com/apple/swift-cmark.git
+    branch: gfm
+  Highlightr:
+    url: https://github.com/raspu/Highlightr.git
+    from: 2.2.0
+
+targets:
+  mrkd:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+        excludes:
+          - "Resources/Info.plist"
+          - "Resources/mrkd.entitlements"
+    settings:
+      base:
+        SWIFT_VERSION: "5"
+        PRODUCT_BUNDLE_IDENTIFIER: com.mrkd.app
+        INFOPLIST_FILE: Sources/Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Sources/Resources/mrkd.entitlements
+        DEVELOPMENT_TEAM: 8DCXP39429
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_HARDENED_RUNTIME: YES
+    dependencies:
+      - package: swift-cmark
+        product: cmark-gfm
+      - package: swift-cmark
+        product: cmark-gfm-extensions
+      - package: Highlightr

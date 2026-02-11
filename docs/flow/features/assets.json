@@ -1,0 +1,225 @@
+{
+  "feature_id": "assets",
+  "title": "Image & Resource Loading Strategy",
+  "type": "feature",
+  "status": "approved",
+  "priority": "high",
+  "scope": "engine",
+  "owner_role": "coder",
+  "dependencies": ["pipeline"],
+  "summary": {
+    "goal": "Load images and resources asynchronously without blocking the text rendering pipeline, with proper placeholders, caching, and memory management",
+    "description": "Markdown files can reference images and other resources. Loading these must not block the text rendering pipeline.\n\n## Image Types to Handle\n\n### Local Images (Relative Paths)\n- Resolve relative to the markdown file location\n- Load asynchronously, display placeholder until ready\n- Downscale to display resolution (no point holding 4000x3000 source in memory)\n- Cache decoded image for scroll performance\n\n### Remote Images (HTTP/HTTPS URLs)\n- Async download with URLSession\n- Show subtle loading placeholder (skeleton or dim rect)\n- Cache to disk (NSURLCache) for re-opens\n- Timeout: 10s, then show broken-image placeholder\n- Respect user network preferences (no loading on metered connections?)\n\n### Base64 Embedded Images\n- Decode on background thread\n- These can be large — decode lazily when scrolled into view\n\n## Performance Guardrails\n- **Per-image memory cap**: Downscale any image > 2048px in either dimension\n- **Total image memory budget**: ~200MB across all images in a window\n- **Lazy loading**: Only decode/download images within viewport + 1 screenful buffer\n- **Recycle**: Release decoded image data for images far from viewport\n\n## Layout Considerations\n- Reserve space for images before they load (use width/height if specified in markdown)\n- If no dimensions specified, use intrinsic size once loaded, then relayout\n- Avoid layout thrashing: batch relayouts when multiple images load simultaneously\n\n## Error Handling\n- Broken image link: show subtle placeholder with file path\n- Network failure: show cached version if available, otherwise placeholder\n- Unsupported format: log warning, show placeholder\n- Never crash or hang due to image loading failures\n\n## Image UX States (improvement)\n- Loading: skeleton rectangle with subtle shimmer animation (respects Reduce Motion)\n- Loaded: smooth fade-in (200ms, or instant with Reduce Motion)\n- Error: subtle placeholder icon with filename/alt text below, muted colors\n- Oversized: images scaled to fit content width, click to view full-size in Preview.app",
+    "acceptance_criteria": [
+      {
+        "id": "async-loading",
+        "description": "Image loading never blocks text rendering pipeline"
+      },
+      {
+        "id": "local-images",
+        "description": "Relative paths resolve correctly to markdown file location"
+      },
+      {
+        "id": "remote-images",
+        "description": "HTTP/HTTPS images download with URLSession and show placeholders"
+      },
+      {
+        "id": "memory-management",
+        "description": "Images respect 200MB total memory budget and lazy loading"
+      },
+      {
+        "id": "error-handling",
+        "description": "Broken images show placeholders, never crash the app"
+      },
+      {
+        "id": "textkit2-attachments",
+        "description": "Uses NSTextAttachment with custom providers for async image display in TextKit 2"
+      }
+    ]
+  },
+  "understanding": {
+    "architect": {
+      "observations": [
+        "Three image types: local (relative), remote (HTTP/S), base64 embedded",
+        "NSTextAttachment with custom providers for TextKit 2 integration",
+        "URLSession for async downloads, NSURLCache for disk caching",
+        "200MB total image memory budget per window",
+        "Lazy loading: viewport + 1 screenful buffer",
+        "Downscale images > 2048px in either dimension",
+        "SVG via NSImage native rendering — static content only"
+      ],
+      "concerns": [
+        "Layout thrashing when multiple images load simultaneously",
+        "Base64 images can be very large — need lazy decoding"
+      ],
+      "confidence": "high"
+    },
+    "designer": {
+      "observations": [
+        "Loading: skeleton rectangle with shimmer (respects Reduce Motion)",
+        "Loaded: 200ms fade-in (instant with Reduce Motion)",
+        "Error: subtle placeholder with filename/alt text, muted colors",
+        "Oversized: scale to fit, click for full-size in Preview.app"
+      ],
+      "confidence": "high"
+    }
+  },
+  "context": {
+    "architect": {
+      "image_loading": "Async, never blocks rendering pipeline",
+      "caching": "Disk cache via NSURLCache with max-size cap and TTL",
+      "memory_cap": "200MB total across all images per window",
+      "svg_strategy": "NSImage native SVG rendering, static content only",
+      "gif_strategy": "Lazy load, play only when in viewport, pause when scrolled away"
+    }
+  },
+  "plan_implementation": {
+    "scopes": ["engine"],
+    "steps": [
+      {
+        "step_id": "as-i001",
+        "title": "Create ImageAttachmentProvider for TextKit 2 async image display",
+        "scope": "engine",
+        "description": "Implement a custom NSTextAttachmentViewProvider subclass (or NSTextAttachment with custom cell) that integrates with TextKit 2 for async image display. When the pipeline encounters an image node in the AST, it creates an NSTextAttachment with a custom provider. The provider initially shows a placeholder, then replaces it with the loaded image. The attachment must report correct bounds for layout — either from markdown-specified dimensions or estimated/placeholder dimensions until the image loads.",
+        "dependencies": [],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Custom NSTextAttachmentViewProvider integrates with TextKit 2 layout" },
+          { "id": "ac2", "description": "Placeholder displayed immediately while image loads" },
+          { "id": "ac3", "description": "Attachment bounds set from markdown dimensions if specified" },
+          { "id": "ac4", "description": "Image replaces placeholder when loaded without breaking layout" }
+        ],
+        "specification": {
+          "architecture": {
+            "class": "MarkdownImageAttachmentProvider: NSTextAttachmentViewProvider",
+            "location": "ViewMD/Engine/Assets/",
+            "bounds": "Explicit from markdown or placeholder size until loaded",
+            "layout_update": "Invalidate layout for attachment range when image loads"
+          }
+        }
+      },
+      {
+        "step_id": "as-i002",
+        "title": "Implement local image loading with path resolution",
+        "scope": "engine",
+        "description": "Implement loading for local images referenced by relative paths in markdown. Resolve paths relative to the markdown file's directory (file URL). Load images asynchronously on a background queue. Use NSImage(contentsOf:) for standard formats (PNG, JPEG, GIF, WebP, TIFF). For SVG, use NSImage which supports SVG natively on macOS. Downscale images exceeding 2048px in either dimension to save memory. Cache the decoded NSImage for reuse during scrolling.",
+        "dependencies": ["as-i001"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Relative paths resolve against markdown file directory" },
+          { "id": "ac2", "description": "PNG, JPEG, GIF, WebP, TIFF, SVG formats load correctly" },
+          { "id": "ac3", "description": "Images > 2048px downscaled to fit memory budget" },
+          { "id": "ac4", "description": "Loading occurs on background queue, never blocks main thread" },
+          { "id": "ac5", "description": "Decoded images cached in memory for scroll performance" }
+        ],
+        "specification": {
+          "architecture": {
+            "path_resolution": "URL(fileURLWithPath: path, relativeTo: markdownFileURL)",
+            "formats": ["PNG", "JPEG", "GIF", "WebP", "TIFF", "SVG"],
+            "downscale": "CGImage resize for images > 2048px in either dimension",
+            "cache": "NSCache<URL, NSImage> with 200MB total cost limit"
+          }
+        }
+      },
+      {
+        "step_id": "as-i003",
+        "title": "Implement remote image downloading with disk cache",
+        "scope": "engine",
+        "description": "Implement async downloading of remote images (HTTP/HTTPS URLs) using URLSession. Configure URLCache for disk caching so re-opening a file does not re-download images. Set a 10-second timeout for downloads. On success, decode and display. On failure (timeout, network error, 404), show error placeholder. Respect cache headers from server. Add network entitlement to the app's entitlements file (com.apple.security.network.client).",
+        "dependencies": ["as-i001"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Remote images download asynchronously via URLSession" },
+          { "id": "ac2", "description": "Disk cache prevents re-downloading on re-open (URLCache)" },
+          { "id": "ac3", "description": "10-second timeout with error placeholder on failure" },
+          { "id": "ac4", "description": "Network entitlement added to app configuration" },
+          { "id": "ac5", "description": "Cache respects HTTP cache headers" }
+        ],
+        "specification": {
+          "architecture": {
+            "session": "URLSession with custom URLSessionConfiguration",
+            "cache": "URLCache with disk capacity ~50MB",
+            "timeout": "10 seconds per image",
+            "entitlement": "com.apple.security.network.client"
+          },
+          "security": {
+            "https_only": "Warn on HTTP, prefer HTTPS",
+            "content_type_check": "Verify response Content-Type is image/*"
+          }
+        }
+      },
+      {
+        "step_id": "as-i004",
+        "title": "Implement base64 embedded image decoding",
+        "scope": "engine",
+        "description": "Handle data URI images embedded in markdown (data:image/png;base64,...). Decode the base64 data on a background thread. These can be very large so decode lazily — only when the image is near the viewport. Parse the MIME type from the data URI to determine format. Apply the same downscaling rules (> 2048px). Cache decoded result to avoid re-decoding on scroll.",
+        "dependencies": ["as-i001"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Base64 data URI images decoded and displayed correctly" },
+          { "id": "ac2", "description": "Decoding happens on background thread" },
+          { "id": "ac3", "description": "MIME type parsed from data URI (image/png, image/jpeg, etc.)" },
+          { "id": "ac4", "description": "Large base64 images downscaled per memory rules" }
+        ],
+        "specification": {
+          "architecture": {
+            "parsing": "Regex to extract MIME type and base64 data from data: URI",
+            "decoding": "Data(base64Encoded:) -> NSImage on background queue",
+            "lazy": "Only decode when image attachment is within viewport buffer"
+          }
+        }
+      },
+      {
+        "step_id": "as-i005",
+        "title": "Implement image memory management and viewport-based loading",
+        "scope": "engine",
+        "description": "Implement the memory management layer for images. Track total image memory usage per window. Only load/decode images within the viewport plus 1 screenful buffer above and below. Release decoded image data for images far from the viewport (keep the placeholder). Use NSCache with a 200MB total cost limit. Monitor scroll position to trigger load/unload cycles. When total memory exceeds budget, evict furthest-from-viewport images first.",
+        "dependencies": ["as-i002", "as-i003", "as-i004"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Total image memory stays under 200MB per window" },
+          { "id": "ac2", "description": "Only images near viewport are decoded in memory" },
+          { "id": "ac3", "description": "Far-from-viewport images release decoded data" },
+          { "id": "ac4", "description": "Scroll position changes trigger load/unload of images" },
+          { "id": "ac5", "description": "Eviction prioritizes images furthest from viewport" }
+        ],
+        "specification": {
+          "architecture": {
+            "tracking": "NSCache with totalCostLimit = 200MB, image cost = decoded byte size",
+            "viewport_buffer": "1 screenful above and below visible area",
+            "scroll_observer": "NSScrollView bounds change notification for viewport tracking",
+            "eviction": "LRU by distance from viewport center"
+          }
+        }
+      },
+      {
+        "step_id": "as-i006",
+        "title": "Implement image placeholder and error states with animations",
+        "scope": "engine",
+        "description": "Create the visual placeholder and error states for images. Loading state: gray rectangle matching expected image dimensions with a subtle shimmer animation (respects Reduce Motion — no animation if enabled). Loaded state: smooth 200ms fade-in transition from placeholder to image (instant if Reduce Motion). Error state: muted icon (broken image symbol) with filename or alt text below in muted theme color. Oversized images: scale to fit content width preserving aspect ratio.",
+        "dependencies": ["as-i001"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Loading placeholder shows gray rectangle with shimmer animation" },
+          { "id": "ac2", "description": "Shimmer disabled when Reduce Motion is enabled" },
+          { "id": "ac3", "description": "Loaded images fade in over 200ms (instant with Reduce Motion)" },
+          { "id": "ac4", "description": "Error state shows broken-image icon with filename/alt text" },
+          { "id": "ac5", "description": "Images wider than content area scale to fit, preserving aspect ratio" }
+        ],
+        "specification": {
+          "design": {
+            "placeholder_color": "Theme foreground at ~10% opacity",
+            "shimmer": "Horizontal gradient sweep animation, 1.5s cycle",
+            "fade_duration": "200ms ease-in-out",
+            "error_icon": "SF Symbols photo.fill or similar, muted color",
+            "scaling": "Aspect-fit to content width, never wider than content area"
+          },
+          "architecture": {
+            "reduce_motion": "NSWorkspace.shared.accessibilityDisplayShouldReduceMotion",
+            "animation": "CAAnimation on the attachment view layer"
+          }
+        }
+      }
+    ]
+  }
+}
