@@ -14,6 +14,11 @@ final class ThemeManager: NSObject {
     // MARK: - Theme Registry
 
     private func themeVariants(named name: String, fontSize: CGFloat, fontFamily: String, codeFontFamily: String) -> (light: Theme, dark: Theme)? {
+        if let palette = customPalettes[name] {
+            let theme = CustomTheme(palette: palette, baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
+            return (light: theme, dark: theme)
+        }
+
         switch name {
         case "Default":
             return (light: DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
@@ -33,6 +38,12 @@ final class ThemeManager: NSObject {
     // MARK: - Properties
 
     private var appearanceObservation: NSKeyValueObservation?
+    private var customPalettes: [String: ThemePalette] = [:]
+
+    private static var themesDirectory: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return appSupport.appendingPathComponent("com.mrkd.app/Themes", isDirectory: true)
+    }
 
     var selectedThemeName: String {
         get {
@@ -101,12 +112,30 @@ final class ThemeManager: NSObject {
         super.init()
         observeAppearanceChanges()
         observeAccessibilityChanges()
+        loadCustomThemes()
+    }
+
+    private func loadCustomThemes() {
+        let dir = Self.themesDirectory
+        guard FileManager.default.fileExists(atPath: dir.path) else { return }
+
+        guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+
+        for file in files {
+            let ext = file.pathExtension.lowercased()
+            guard ext == "itermcolors" || ext == "json" else { continue }
+
+            if let palette = try? ThemeImporter.parse(from: file) {
+                customPalettes[palette.name] = palette
+            }
+        }
     }
 
     // MARK: - Theme Management
 
     func availableThemeNames() -> [String] {
-        return ["Default", "Solarized", "Monokai", "GitHub", "Dracula"].sorted()
+        let builtIn = ["Default", "Solarized", "Monokai", "GitHub", "Dracula"]
+        return (builtIn + Array(customPalettes.keys)).sorted()
     }
 
     func theme(named name: String, isDark: Bool) -> Theme? {
@@ -115,6 +144,39 @@ final class ThemeManager: NSObject {
         let currentCodeFontFamily = codeFontFamily
         guard let themeVariants = themeVariants(named: name, fontSize: currentFontSize, fontFamily: currentFontFamily, codeFontFamily: currentCodeFontFamily) else { return nil }
         return isDark ? themeVariants.dark : themeVariants.light
+    }
+
+    @discardableResult
+    func importTheme(from url: URL) throws -> String {
+        let palette = try ThemeImporter.parse(from: url)
+
+        // Ensure themes directory exists
+        let dir = Self.themesDirectory
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        // Copy file to themes directory (deduplicate if needed)
+        let filename = url.lastPathComponent
+        var destination = dir.appendingPathComponent(filename)
+
+        if FileManager.default.fileExists(atPath: destination.path) {
+            let stem = url.deletingPathExtension().lastPathComponent
+            let ext = url.pathExtension
+            var counter = 2
+            repeat {
+                destination = dir.appendingPathComponent("\(stem)-\(counter).\(ext)")
+                counter += 1
+            } while FileManager.default.fileExists(atPath: destination.path)
+        }
+
+        try FileManager.default.copyItem(at: url, to: destination)
+
+        // Register the palette
+        customPalettes[palette.name] = palette
+
+        // Select and notify
+        selectedThemeName = palette.name
+
+        return palette.name
     }
 
     // MARK: - Appearance Observation

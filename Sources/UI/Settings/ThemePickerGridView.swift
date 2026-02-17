@@ -15,6 +15,9 @@ final class ThemePickerGridView: NSView {
     private let cardHeight: CGFloat = 140
     private let spacing: CGFloat = 12
 
+    var onImportTheme: (() -> Void)?
+    private var importCard: NSControl?
+
     // MARK: - Initialization
 
     init(selectedTheme: String) {
@@ -50,11 +53,20 @@ final class ThemePickerGridView: NSView {
         }
 
         updateSelection()
+
+        // Add "Import Theme..." card
+        let card = ImportThemeCardView()
+        card.translatesAutoresizingMaskIntoConstraints = false
+        card.target = self
+        card.action = #selector(importClicked(_:))
+        importCard = card
+        addSubview(card)
     }
 
     private func setupLayout() {
         // Calculate required rows
-        let rows = (themeNames.count + columns - 1) / columns
+        let totalItems = themeNames.count + 1  // +1 for import card
+        let rows = (totalItems + columns - 1) / columns
         let totalWidth = CGFloat(columns) * cardWidth + CGFloat(columns - 1) * spacing
         let totalHeight = CGFloat(rows) * cardHeight + CGFloat(rows - 1) * spacing
 
@@ -74,6 +86,22 @@ final class ThemePickerGridView: NSView {
             ])
         }
 
+        // Position import card as last item
+        if let importCard = importCard {
+            let importIndex = themeNames.count
+            let row = importIndex / columns
+            let col = importIndex % columns
+            let x = CGFloat(col) * (cardWidth + spacing)
+            let y = CGFloat(row) * (cardHeight + spacing)
+
+            NSLayoutConstraint.activate([
+                importCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: x),
+                importCard.topAnchor.constraint(equalTo: topAnchor, constant: y),
+                importCard.widthAnchor.constraint(equalToConstant: cardWidth),
+                importCard.heightAnchor.constraint(equalToConstant: cardHeight)
+            ])
+        }
+
         // Set our own size
         translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -83,6 +111,10 @@ final class ThemePickerGridView: NSView {
     }
 
     // MARK: - Actions
+
+    @objc private func importClicked(_ sender: Any) {
+        onImportTheme?()
+    }
 
     @objc private func cardClicked(_ sender: ThemeCardView) {
         guard sender.tag >= 0 && sender.tag < themeNames.count else { return }
@@ -308,6 +340,70 @@ private final class ThemeCardView: NSControl {
         // Return self for all clicks within the card, so the preview
         // scroll view / text view don't absorb mouse events.
         return super.hitTest(point) != nil ? self : nil
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if let action = action, let target = target {
+            NSApp.sendAction(action, to: target, from: self)
+        }
+    }
+
+    override var acceptsFirstResponder: Bool { false }
+}
+
+// MARK: - Import Theme Card View
+
+@MainActor
+private final class ImportThemeCardView: NSControl {
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 8
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        // Dashed border
+        let borderPath = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 8, yRadius: 8)
+        borderPath.lineWidth = 1.5
+        let dashPattern: [CGFloat] = [6, 4]
+        borderPath.setLineDash(dashPattern, count: 2, phase: 0)
+        NSColor.tertiaryLabelColor.setStroke()
+        borderPath.stroke()
+
+        // "+" symbol
+        let plusFont = NSFont.systemFont(ofSize: 32, weight: .light)
+        let plusAttrs: [NSAttributedString.Key: Any] = [
+            .font: plusFont,
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+        let plusStr = NSAttributedString(string: "+", attributes: plusAttrs)
+        let plusSize = plusStr.size()
+        let plusOrigin = NSPoint(
+            x: bounds.midX - plusSize.width / 2,
+            y: bounds.midY - plusSize.height / 2 + 8
+        )
+        plusStr.draw(at: plusOrigin)
+
+        // "Import Theme..." label
+        let labelFont = NSFont.systemFont(ofSize: 11, weight: .medium)
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+        let labelStr = NSAttributedString(string: "Import Theme\u{2026}", attributes: labelAttrs)
+        let labelSize = labelStr.size()
+        let labelOrigin = NSPoint(
+            x: bounds.midX - labelSize.width / 2,
+            y: bounds.midY - plusSize.height / 2 - 8
+        )
+        labelStr.draw(at: labelOrigin)
     }
 
     override func mouseDown(with event: NSEvent) {
