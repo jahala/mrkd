@@ -6,10 +6,31 @@ final class ImageAttachmentProvider {
     private let fileBaseURL: URL
     private let imageCache = NSCache<NSString, NSImage>()
     private let downloadQueue = DispatchQueue(label: "com.mrkd.images", qos: .utility, attributes: .concurrent)
+    private var pressureObserver: NSObjectProtocol?
+    private let urlSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        return URLSession(configuration: config)
+    }()
 
     init(fileBaseURL: URL) {
         self.fileBaseURL = fileBaseURL
         imageCache.totalCostLimit = 200 * 1024 * 1024 // 200MB budget
+
+        // Listen for memory pressure notifications and flush cache
+        pressureObserver = NotificationCenter.default.addObserver(
+            forName: MemoryMonitor.memoryPressureNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.imageCache.removeAllObjects()
+        }
+    }
+
+    deinit {
+        if let observer = pressureObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     /// Load image from URL string (can be relative path, absolute path, or HTTP URL)
@@ -58,14 +79,10 @@ final class ImageAttachmentProvider {
 
     private func loadRemoteImage(_ urlString: String) -> NSImage? {
         guard let url = URL(string: urlString) else { return nil }
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 10
-        let session = URLSession(configuration: config)
-
         var resultImage: NSImage?
         let semaphore = DispatchSemaphore(value: 0)
 
-        let task = session.dataTask(with: url) { data, response, error in
+        let task = urlSession.dataTask(with: url) { data, response, error in
             defer { semaphore.signal() }
             guard let data = data, error == nil else { return }
             resultImage = NSImage(data: data)
@@ -95,14 +112,9 @@ final class ImageAttachmentProvider {
         let scale = maxDimension / max(size.width, size.height)
         let newSize = NSSize(width: size.width * scale, height: size.height * scale)
 
-        let newImage = NSImage(size: newSize)
-        newImage.lockFocus()
-        image.draw(in: NSRect(origin: .zero, size: newSize),
-                   from: NSRect(origin: .zero, size: size),
-                   operation: .copy,
-                   fraction: 1.0)
-        newImage.unlockFocus()
-
-        return newImage
+        return NSImage(size: newSize, flipped: false) { rect in
+            image.draw(in: rect, from: NSRect(origin: .zero, size: size), operation: .copy, fraction: 1.0)
+            return true
+        }
     }
 }

@@ -7,9 +7,9 @@ final class MarkdownViewController: NSViewController {
     private var textView: NSTextView!
     private var markdownContent: String = ""
     private var themeObserver: NSObjectProtocol?
+    private var memoryPressureObserver: NSObjectProtocol?
     private let pipeline = RenderPipeline()
     private var openWithButton: OpenWithButton!
-    private var trackingArea: NSTrackingArea?
     private let textInteractionHandler = TextInteractionHandler()
     private var fileWatcher: FileWatcher?
     private var reloadBanner: ReloadBannerView?
@@ -32,6 +32,9 @@ final class MarkdownViewController: NSViewController {
         if let observer = themeObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let observer = memoryPressureObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
         pipeline.cancel()
         fileWatcher?.stop()
     }
@@ -48,23 +51,27 @@ final class MarkdownViewController: NSViewController {
         scrollView.drawsBackground = true
         scrollView.autoresizingMask = [.width, .height]
 
-        // Create text view with TextKit 2
+        // TextKit 1 stack — TextKit 2 has layout failures with NSTextBlock
+        // (used in code blocks and tables), causing "deferral block timed out"
+        let textStorage = NSTextStorage()
+        let layoutManager = CodeBorderLayoutManager()
+        layoutManager.allowsNonContiguousLayout = true
+        textStorage.addLayoutManager(layoutManager)
         let textContainer = NSTextContainer()
         textContainer.widthTracksTextView = true
-
-        let textLayoutManager = NSTextLayoutManager()
-        textLayoutManager.textContainer = textContainer
-
-        let textContentStorage = NSTextContentStorage()
-        textContentStorage.addTextLayoutManager(textLayoutManager)
-
+        layoutManager.addTextContainer(textContainer)
         textView = NSTextView(frame: .zero, textContainer: textContainer)
         textView.isEditable = false
         textView.isSelectable = true
         textView.isRichText = true
         textView.usesAdaptiveColorMappingForDarkAppearance = false
         textView.isAutomaticLinkDetectionEnabled = false
-        textView.textContainerInset = NSSize(width: 32, height: 24)
+        textView.usesFontPanel = false
+        textView.usesRuler = false
+        textView.isGrammarCheckingEnabled = false
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.allowsUndo = false
+        textView.textContainerInset = NSSize(width: 82, height: 40)
         textView.autoresizingMask = [.width]
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
@@ -82,9 +89,11 @@ final class MarkdownViewController: NSViewController {
         openWithButton.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            openWithButton.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 16),
-            openWithButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16)
+            openWithButton.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 5),
+            openWithButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8)
         ])
+
+        openWithButton.alphaValue = 1
 
         self.view = containerView
     }
@@ -92,17 +101,12 @@ final class MarkdownViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         observeThemeChanges()
+        observeMemoryPressure()
         loadMarkdownFile()
-        setupTrackingArea()
         setupFileWatcher()
         setupKeyViewLoop()
         setupScrollAhead()
         setupAccessibilityRotors()
-    }
-
-    override func viewDidLayout() {
-        super.viewDidLayout()
-        updateTrackingArea()
     }
 
     // MARK: - Theme Integration
@@ -114,6 +118,17 @@ final class MarkdownViewController: NSViewController {
             queue: .main
         ) { [weak self] _ in
             self?.rerender()
+        }
+    }
+
+    private func observeMemoryPressure() {
+        memoryPressureObserver = NotificationCenter.default.addObserver(
+            forName: MemoryMonitor.memoryPressureNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            // Release the Highlightr JSC context — it will be lazily re-created
+            MarkdownRenderer.clearHighlightrCache()
         }
     }
 
@@ -132,7 +147,7 @@ final class MarkdownViewController: NSViewController {
 
         pipeline.render(markdown: markdownContent, theme: theme) { [weak self] result in
             guard let self = self else { return }
-            self.textView.textContentStorage?.attributedString = result.attributedString
+            self.textView.textStorage?.setAttributedString(result.attributedString)
             self.applyThemeColors()
             self.loadDeferredImages()
             // Restore scroll position
@@ -156,7 +171,7 @@ final class MarkdownViewController: NSViewController {
                 // Tier 1: full immediate render
                 pipeline.render(markdown: content, theme: theme) { [weak self] result in
                     guard let self = self else { return }
-                    self.textView.textContentStorage?.attributedString = result.attributedString
+                    self.textView.textStorage?.setAttributedString(result.attributedString)
                     self.applyThemeColors()
                     self.loadDeferredImages()
                     self.notifyInitialRenderComplete()
@@ -168,14 +183,14 @@ final class MarkdownViewController: NSViewController {
                     theme: theme,
                     onFirstScreen: { [weak self] result in
                         guard let self = self else { return }
-                        self.textView.textContentStorage?.attributedString = result.attributedString
+                        self.textView.textStorage?.setAttributedString(result.attributedString)
                         self.applyThemeColors()
                         self.notifyInitialRenderComplete()
                     },
                     onComplete: { [weak self] result in
                         guard let self = self else { return }
                         let scrollPosition = self.scrollView.contentView.bounds.origin
-                        self.textView.textContentStorage?.attributedString = result.attributedString
+                        self.textView.textStorage?.setAttributedString(result.attributedString)
                         self.scrollView.contentView.scroll(to: scrollPosition)
                         self.loadDeferredImages()
                         MemoryMonitor.shared.checkAndLog()
@@ -206,7 +221,7 @@ final class MarkdownViewController: NSViewController {
                 .foregroundColor: NSColor.secondaryLabelColor,
             ]
         )
-        textView.textContentStorage?.attributedString = attributed
+        textView.textStorage?.setAttributedString(attributed)
         applyThemeColors()
     }
 
@@ -237,7 +252,7 @@ final class MarkdownViewController: NSViewController {
 
     private func loadDeferredImages() {
         let generation = renderGeneration
-        guard let textStorage = textView.textContentStorage?.textStorage else { return }
+        guard let textStorage = textView.textStorage else { return }
         let fullRange = NSRange(location: 0, length: textStorage.length)
 
         textStorage.enumerateAttribute(.imageSourceURL, in: fullRange, options: []) { [weak self] value, range, _ in
@@ -247,7 +262,10 @@ final class MarkdownViewController: NSViewController {
             self.imageProvider.loadImage(from: urlString) { [weak self] image in
                 guard let self, self.renderGeneration == generation else { return }
                 guard let image else { return }
-                guard let textStorage = self.textView.textContentStorage?.textStorage else { return }
+                guard let textStorage = self.textView.textStorage else { return }
+
+                // Verify range is still valid in current storage
+                guard range.location + range.length <= textStorage.length else { return }
 
                 let constrainedSize = self.constrainedImageSize(for: image)
                 attachment.bounds = NSRect(origin: .zero, size: constrainedSize)
@@ -274,50 +292,6 @@ final class MarkdownViewController: NSViewController {
 
         let scale = maxWidth / imageSize.width
         return NSSize(width: maxWidth, height: imageSize.height * scale)
-    }
-
-    // MARK: - Tracking Area for Open With Button
-
-    private func setupTrackingArea() {
-        updateTrackingArea()
-    }
-
-    private func updateTrackingArea() {
-        if let existingTrackingArea = trackingArea {
-            view.removeTrackingArea(existingTrackingArea)
-        }
-
-        // Track the entire visible view for mouse movement so we can
-        // show/hide the button when the cursor enters the top-right corner.
-        trackingArea = NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeInActiveApp, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-
-        view.addTrackingArea(trackingArea!)
-    }
-
-    private func isInButtonRegion(_ event: NSEvent) -> Bool {
-        let location = view.convert(event.locationInWindow, from: nil)
-        return location.x > view.bounds.maxX - 200 && location.y > view.bounds.maxY - 100
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        if isInButtonRegion(event) {
-            openWithButton.show()
-        }
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        // Don't hide immediately, let the button's timer handle it
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        if isInButtonRegion(event) {
-            openWithButton.show()
-        }
     }
 
     // MARK: - File Watching
@@ -433,7 +407,7 @@ extension MarkdownViewController: NSAccessibilityCustomRotorItemSearchDelegate {
         _ rotor: NSAccessibilityCustomRotor,
         resultFor searchParameters: NSAccessibilityCustomRotor.SearchParameters
     ) -> NSAccessibilityCustomRotor.ItemResult? {
-        guard let textStorage = textView.textContentStorage?.textStorage else { return nil }
+        guard let textStorage = textView.textStorage else { return nil }
         let length = textStorage.length
         guard length > 0 else { return nil }
 
@@ -469,5 +443,43 @@ extension MarkdownViewController: NSAccessibilityCustomRotorItemSearchDelegate {
         item.targetRange = headingRange
         item.customLabel = textStorage.attributedSubstring(from: headingRange).string
         return item
+    }
+}
+
+// MARK: - Inline Code Border Drawing
+
+/// Layout manager that draws 1px rounded borders for inline code spans
+/// instead of filled background rectangles.
+final class CodeBorderLayoutManager: NSLayoutManager {
+
+    override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
+        super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+
+        guard let textStorage = textStorage else { return }
+        let charRange = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+
+        textStorage.enumerateAttribute(.inlineCodeBorderColor, in: charRange, options: []) { value, range, _ in
+            guard let borderColor = value as? NSColor else { return }
+            let glyphRange = self.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            guard let textContainer = self.textContainers.first else { return }
+
+            self.enumerateEnclosingRects(
+                forGlyphRange: glyphRange,
+                withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                in: textContainer
+            ) { rect, _ in
+                var drawRect = rect
+                drawRect.origin.x += origin.x
+                drawRect.origin.y += origin.y
+                // 3pt inner padding so the border doesn't crowd the glyphs.
+                // Outer margin is handled by thin-space characters in the attributed string.
+                drawRect = drawRect.insetBy(dx: -3, dy: 1.5)
+
+                let path = NSBezierPath(roundedRect: drawRect, xRadius: 2, yRadius: 2)
+                path.lineWidth = 1
+                borderColor.setStroke()
+                path.stroke()
+            }
+        }
     }
 }

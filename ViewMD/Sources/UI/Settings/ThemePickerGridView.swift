@@ -304,6 +304,12 @@ private final class ThemeCardView: NSControl {
         }
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Return self for all clicks within the card, so the preview
+        // scroll view / text view don't absorb mouse events.
+        return super.hitTest(point) != nil ? self : nil
+    }
+
     override func mouseDown(with event: NSEvent) {
         if let action = action, let target = target {
             NSApp.sendAction(action, to: target, from: self)

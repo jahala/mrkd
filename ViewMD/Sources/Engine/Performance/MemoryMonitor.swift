@@ -4,6 +4,7 @@ import os.log
 final class MemoryMonitor: @unchecked Sendable {
 
     static let shared = MemoryMonitor()
+    static let memoryPressureNotification = Notification.Name("MrkdMemoryPressure")
 
     private let logger = Logger(subsystem: "com.mrkd", category: "memory")
     private let budgetBytes: Int64 = 120 * 1024 * 1024 // 120MB hard cap
@@ -34,13 +35,19 @@ final class MemoryMonitor: @unchecked Sendable {
         currentMemoryBytes > budgetBytes
     }
 
-    /// Log a warning if memory is near or over budget.
-    func checkAndLog() {
+    /// Check memory and evict cache if over budget.
+    func checkAndEvictIfNeeded() {
         let mb = Double(currentMemoryBytes) / (1024 * 1024)
         if isOverBudget {
-            logger.warning("Memory over budget: \(mb, format: .fixed(precision: 1))MB / 120MB")
+            logger.warning("Memory over budget: \(mb, format: .fixed(precision: 1))MB / 120MB - posting eviction notification")
+            NotificationCenter.default.post(name: Self.memoryPressureNotification, object: nil)
         } else if isNearBudget {
             logger.info("Memory near budget: \(mb, format: .fixed(precision: 1))MB / 120MB")
         }
+    }
+
+    /// Log a warning if memory is near or over budget.
+    func checkAndLog() {
+        checkAndEvictIfNeeded()
     }
 }

@@ -4,10 +4,12 @@ struct MonokaiTheme: Theme {
     let name = "Monokai"
     let baseFontSize: CGFloat
     let fontFamily: String
+    let codeFontFamily: String
 
-    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono") {
+    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono", codeFontFamily: String = "SF Mono") {
         self.baseFontSize = baseFontSize
         self.fontFamily = fontFamily
+        self.codeFontFamily = codeFontFamily
     }
 
     // Monokai color palette
@@ -27,13 +29,24 @@ struct MonokaiTheme: Theme {
     var codeBackgroundColor: NSColor {
         NSColor(red: 0x1e/255.0, green: 0x1f/255.0, blue: 0x1c/255.0, alpha: 1.0)
     }
-    var codeTextColor: NSColor { yellow }
+    var codeTextColor: NSColor { fg }
     var blockquoteColor: NSColor { comment }
     var blockquoteBarColor: NSColor {
         NSColor(red: 0x49/255.0, green: 0x48/255.0, blue: 0x3e/255.0, alpha: 1.0)
     }
+    var highlightrTheme: String { "monokai" }
 
     func headingColor(level: Int) -> NSColor {
         return green
+    }
+
+    func admonitionColor(type: AdmonitionType) -> NSColor {
+        switch type {
+        case .note:      return blue
+        case .tip:       return green
+        case .important: return purple
+        case .warning:   return orange
+        case .caution:   return red
+        }
     }
 }

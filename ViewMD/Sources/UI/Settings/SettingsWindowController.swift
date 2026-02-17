@@ -11,9 +11,17 @@ final class SettingsWindowController: NSWindowController {
 
     private let contentView = NSView()
     private var themePickerGrid: ThemePickerGridView!
-    private var fontPopUpButton: NSPopUpButton!
+    private var bodyFontPopUpButton: NSPopUpButton!
+    private var codeFontPopUpButton: NSPopUpButton!
 
-    private let availableFontFamilies = ["SF Mono", "Menlo", "Fira Code", "JetBrains Mono", "IBM Plex Mono"]
+    private static let monospaceFonts = [
+        "SF Mono", "Menlo", "Fira Code", "JetBrains Mono", "Geist Mono", "Source Code Pro", "IBM Plex Mono",
+        "iA Writer Mono V"
+    ]
+
+    private static let proportionalFonts = [
+        "Geist", "Inter", "Open Sans", "Source Sans 3", "Literata", "Merriweather"
+    ]
 
     // MARK: - Initialization
 
@@ -29,7 +37,7 @@ final class SettingsWindowController: NSWindowController {
 
         window.title = "Settings"
         window.contentView = contentView
-        window.isReleasedWhenClosed = false // Keep window in memory
+        window.isReleasedWhenClosed = false
 
         setupUI()
         observeThemeChanges()
@@ -42,110 +50,110 @@ final class SettingsWindowController: NSWindowController {
     // MARK: - Setup
 
     private func setupUI() {
-        // Create a vertical stack manually
         let stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.alignment = .leading
         stackView.spacing = 16
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
-        // Theme section header
         let themeSectionLabel = NSTextField(labelWithString: "Theme")
         themeSectionLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         themeSectionLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // Theme picker grid
         themePickerGrid = ThemePickerGridView(selectedTheme: ThemeManager.shared.selectedThemeName)
         themePickerGrid.translatesAutoresizingMaskIntoConstraints = false
 
-        // Font section
-        let fontSectionView = createFontSectionView()
-        fontSectionView.translatesAutoresizingMaskIntoConstraints = false
+        let bodyFontRow = createFontRow(
+            label: "Body Font",
+            families: Self.monospaceFonts + Self.proportionalFonts,
+            currentFamily: ThemeManager.shared.fontFamily,
+            action: #selector(bodyFontChanged(_:)),
+            assignTo: &bodyFontPopUpButton
+        )
 
-        // Add to stack
+        let codeFontRow = createFontRow(
+            label: "Code Font",
+            families: Self.monospaceFonts,
+            currentFamily: ThemeManager.shared.codeFontFamily,
+            action: #selector(codeFontChanged(_:)),
+            assignTo: &codeFontPopUpButton
+        )
+
         stackView.addArrangedSubview(themeSectionLabel)
         stackView.addArrangedSubview(themePickerGrid)
-        stackView.addArrangedSubview(fontSectionView)
+        stackView.addArrangedSubview(bodyFontRow)
+        stackView.addArrangedSubview(codeFontRow)
 
         contentView.addSubview(stackView)
 
-        // Layout constraints
         NSLayoutConstraint.activate([
             stackView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
             stackView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             stackView.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -20)
         ])
 
-        // Set initial keyboard focus to theme grid
         window?.makeFirstResponder(themePickerGrid)
     }
 
-    private func createFontSectionView() -> NSView {
+    private func createFontRow(
+        label: String,
+        families: [String],
+        currentFamily: String,
+        action: Selector,
+        assignTo button: inout NSPopUpButton!
+    ) -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        // Font label
-        let fontLabel = NSTextField(labelWithString: "Font")
+        let fontLabel = NSTextField(labelWithString: label)
         fontLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         fontLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // Font popup button
-        fontPopUpButton = NSPopUpButton()
-        fontPopUpButton.translatesAutoresizingMaskIntoConstraints = false
-        fontPopUpButton.target = self
-        fontPopUpButton.action = #selector(fontFamilyChanged(_:))
+        let popUpButton = NSPopUpButton()
+        popUpButton.translatesAutoresizingMaskIntoConstraints = false
+        popUpButton.target = self
+        popUpButton.action = action
+        button = popUpButton
 
-        // Populate font menu with only installed fonts
         let installedFamilies = NSFontManager.shared.availableFontFamilies
-        let currentFamily = ThemeManager.shared.fontFamily
 
-        for family in availableFontFamilies {
+        for family in families {
             if installedFamilies.contains(family) {
                 let menuItem = NSMenuItem(title: family, action: nil, keyEquivalent: "")
-
-                // Render menu item in its own font
                 if let font = NSFont(name: family, size: 13) {
-                    let attributes: [NSAttributedString.Key: Any] = [
-                        .font: font
-                    ]
-                    menuItem.attributedTitle = NSAttributedString(string: family, attributes: attributes)
+                    menuItem.attributedTitle = NSAttributedString(string: family, attributes: [.font: font])
                 }
-
-                fontPopUpButton.menu?.addItem(menuItem)
-
-                // Select current font
+                popUpButton.menu?.addItem(menuItem)
                 if family == currentFamily {
-                    fontPopUpButton.select(menuItem)
+                    popUpButton.select(menuItem)
                 }
             }
         }
 
-        // If current family is not in our list but is installed, add it
-        if !availableFontFamilies.contains(currentFamily) && installedFamilies.contains(currentFamily) {
+        // Add current family if not in predefined list
+        if !families.contains(currentFamily) && installedFamilies.contains(currentFamily) {
             let menuItem = NSMenuItem(title: currentFamily, action: nil, keyEquivalent: "")
             if let font = NSFont(name: currentFamily, size: 13) {
-                let attributes: [NSAttributedString.Key: Any] = [
-                    .font: font
-                ]
-                menuItem.attributedTitle = NSAttributedString(string: currentFamily, attributes: attributes)
+                menuItem.attributedTitle = NSAttributedString(string: currentFamily, attributes: [.font: font])
             }
-            fontPopUpButton.menu?.addItem(menuItem)
-            fontPopUpButton.selectItem(withTitle: currentFamily)
+            popUpButton.menu?.addItem(menuItem)
+            popUpButton.selectItem(withTitle: currentFamily)
         }
 
         container.addSubview(fontLabel)
-        container.addSubview(fontPopUpButton)
+        container.addSubview(popUpButton)
 
         NSLayoutConstraint.activate([
             fontLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             fontLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            fontLabel.widthAnchor.constraint(equalToConstant: 80),
 
-            fontPopUpButton.leadingAnchor.constraint(equalTo: fontLabel.trailingAnchor, constant: 12),
-            fontPopUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            fontPopUpButton.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            fontPopUpButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 200),
+            popUpButton.leadingAnchor.constraint(equalTo: fontLabel.trailingAnchor, constant: 12),
+            popUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            popUpButton.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            popUpButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 200),
 
-            container.heightAnchor.constraint(equalTo: fontPopUpButton.heightAnchor)
+            container.heightAnchor.constraint(equalTo: popUpButton.heightAnchor)
         ])
 
         return container
@@ -153,9 +161,14 @@ final class SettingsWindowController: NSWindowController {
 
     // MARK: - Actions
 
-    @objc private func fontFamilyChanged(_ sender: NSPopUpButton) {
+    @objc private func bodyFontChanged(_ sender: NSPopUpButton) {
         guard let selectedTitle = sender.selectedItem?.title else { return }
         ThemeManager.shared.fontFamily = selectedTitle
+    }
+
+    @objc private func codeFontChanged(_ sender: NSPopUpButton) {
+        guard let selectedTitle = sender.selectedItem?.title else { return }
+        ThemeManager.shared.codeFontFamily = selectedTitle
     }
 
     // MARK: - Theme Observation
@@ -169,27 +182,26 @@ final class SettingsWindowController: NSWindowController {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                // Update UI if needed when theme changes from elsewhere
-                // (e.g., if theme changed via menu while settings window is open)
                 self?.updateUIForCurrentTheme()
             }
         }
     }
 
     private func updateUIForCurrentTheme() {
-        // Update font selector if fontFamily changed externally
         let currentFamily = ThemeManager.shared.fontFamily
-        if fontPopUpButton.selectedItem?.title != currentFamily {
-            fontPopUpButton.selectItem(withTitle: currentFamily)
+        if bodyFontPopUpButton.selectedItem?.title != currentFamily {
+            bodyFontPopUpButton.selectItem(withTitle: currentFamily)
         }
 
-        // The theme grid updates itself via ThemeManager notifications
+        let currentCodeFamily = ThemeManager.shared.codeFontFamily
+        if codeFontPopUpButton.selectedItem?.title != currentCodeFamily {
+            codeFontPopUpButton.selectItem(withTitle: currentCodeFamily)
+        }
     }
 
     // MARK: - Window Management
 
     override func showWindow(_ sender: Any?) {
-        // Center relative to frontmost viewer window if available
         if let frontWindow = NSApp.windows.first(where: { $0.isVisible && $0 !== window }) {
             window?.center()
             window?.setFrameOrigin(NSPoint(
@@ -202,8 +214,6 @@ final class SettingsWindowController: NSWindowController {
 
         super.showWindow(sender)
         window?.makeKeyAndOrderFront(sender)
-
-        // Set initial focus to theme grid
         window?.makeFirstResponder(themePickerGrid)
     }
 

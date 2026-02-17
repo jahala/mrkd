@@ -6,10 +6,12 @@ struct GitHubLight: Theme {
     let name = "GitHub Light"
     let baseFontSize: CGFloat
     let fontFamily: String
+    let codeFontFamily: String
 
-    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono") {
+    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono", codeFontFamily: String = "SF Mono") {
         self.baseFontSize = baseFontSize
         self.fontFamily = fontFamily
+        self.codeFontFamily = codeFontFamily
     }
 
     private let bg = NSColor(red: 0xff/255.0, green: 0xff/255.0, blue: 0xff/255.0, alpha: 1.0)
@@ -27,6 +29,7 @@ struct GitHubLight: Theme {
     var codeTextColor: NSColor { codeText }
     var blockquoteColor: NSColor { quote }
     var blockquoteBarColor: NSColor { quoteBar }
+    var highlightrTheme: String { "github" }
 
     func headingColor(level: Int) -> NSColor {
         return fg
@@ -39,10 +42,12 @@ struct GitHubDark: Theme {
     let name = "GitHub Dark"
     let baseFontSize: CGFloat
     let fontFamily: String
+    let codeFontFamily: String
 
-    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono") {
+    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono", codeFontFamily: String = "SF Mono") {
         self.baseFontSize = baseFontSize
         self.fontFamily = fontFamily
+        self.codeFontFamily = codeFontFamily
     }
 
     private let bg = NSColor(red: 0x0d/255.0, green: 0x11/255.0, blue: 0x17/255.0, alpha: 1.0)
@@ -60,6 +65,7 @@ struct GitHubDark: Theme {
     var codeTextColor: NSColor { codeText }
     var blockquoteColor: NSColor { quote }
     var blockquoteBarColor: NSColor { quoteBar }
+    var highlightrTheme: String { "github-dark" }
 
     func headingColor(level: Int) -> NSColor {
         return fg

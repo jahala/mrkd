@@ -13,18 +13,18 @@ final class ThemeManager: NSObject {
 
     // MARK: - Theme Registry
 
-    private func themeVariants(named name: String, fontSize: CGFloat, fontFamily: String) -> (light: Theme, dark: Theme)? {
+    private func themeVariants(named name: String, fontSize: CGFloat, fontFamily: String, codeFontFamily: String) -> (light: Theme, dark: Theme)? {
         switch name {
         case "Default":
-            return (light: DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily), dark: DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily))
+            return (light: DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
         case "Solarized":
-            return (light: SolarizedLight(baseFontSize: fontSize, fontFamily: fontFamily), dark: SolarizedDark(baseFontSize: fontSize, fontFamily: fontFamily))
+            return (light: SolarizedLight(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: SolarizedDark(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
         case "Monokai":
-            return (light: MonokaiTheme(baseFontSize: fontSize, fontFamily: fontFamily), dark: MonokaiTheme(baseFontSize: fontSize, fontFamily: fontFamily))
+            return (light: MonokaiTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: MonokaiTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
         case "GitHub":
-            return (light: GitHubLight(baseFontSize: fontSize, fontFamily: fontFamily), dark: GitHubDark(baseFontSize: fontSize, fontFamily: fontFamily))
+            return (light: GitHubLight(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: GitHubDark(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
         case "Dracula":
-            return (light: DraculaTheme(baseFontSize: fontSize, fontFamily: fontFamily), dark: DraculaTheme(baseFontSize: fontSize, fontFamily: fontFamily))
+            return (light: DraculaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: DraculaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
         default:
             return nil
         }
@@ -55,15 +55,23 @@ final class ThemeManager: NSObject {
         }
     }
 
-    nonisolated var fontFamily: String {
+    var fontFamily: String {
         get {
             UserDefaults.standard.string(forKey: "fontFamily") ?? "SF Mono"
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "fontFamily")
-            Task { @MainActor in
-                notifyThemeChange()
-            }
+            notifyThemeChange()
+        }
+    }
+
+    var codeFontFamily: String {
+        get {
+            UserDefaults.standard.string(forKey: "codeFontFamily") ?? "JetBrains Mono"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "codeFontFamily")
+            notifyThemeChange()
         }
     }
 
@@ -71,15 +79,15 @@ final class ThemeManager: NSObject {
         let themeName = selectedThemeName
         let currentFontSize = fontSize
         let currentFontFamily = fontFamily
+        let currentCodeFontFamily = codeFontFamily
 
-        guard let themeVariants = themeVariants(named: themeName, fontSize: currentFontSize, fontFamily: currentFontFamily) else {
-            return DefaultTheme(baseFontSize: currentFontSize, fontFamily: currentFontFamily)
+        guard let themeVariants = themeVariants(named: themeName, fontSize: currentFontSize, fontFamily: currentFontFamily, codeFontFamily: currentCodeFontFamily) else {
+            return DefaultTheme(baseFontSize: currentFontSize, fontFamily: currentFontFamily, codeFontFamily: currentCodeFontFamily)
         }
 
         let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let theme = isDark ? themeVariants.dark : themeVariants.light
 
-        // Apply high contrast wrapper if needed
         if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
             return HighContrastTheme(wrapping: theme)
         }
@@ -104,7 +112,8 @@ final class ThemeManager: NSObject {
     func theme(named name: String, isDark: Bool) -> Theme? {
         let currentFontSize = fontSize
         let currentFontFamily = fontFamily
-        guard let themeVariants = themeVariants(named: name, fontSize: currentFontSize, fontFamily: currentFontFamily) else { return nil }
+        let currentCodeFontFamily = codeFontFamily
+        guard let themeVariants = themeVariants(named: name, fontSize: currentFontSize, fontFamily: currentFontFamily, codeFontFamily: currentCodeFontFamily) else { return nil }
         return isDark ? themeVariants.dark : themeVariants.light
     }
 

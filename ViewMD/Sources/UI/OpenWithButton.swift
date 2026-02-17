@@ -6,11 +6,6 @@ final class OpenWithButton: NSView {
     private let button: NSButton
     private let fileURL: URL
 
-    private var fadeTimer: Timer?
-    private var isVisible = false
-    private let fadeInDuration: TimeInterval = 0.2
-    private let fadeOutDelay: TimeInterval = 2.0
-
     private var reduceMotionEnabled: Bool {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
@@ -24,22 +19,24 @@ final class OpenWithButton: NSView {
         visualEffectView.state = .active
         visualEffectView.blendingMode = .behindWindow
         visualEffectView.wantsLayer = true
-        visualEffectView.layer?.cornerRadius = 8
+        visualEffectView.layer?.cornerRadius = 3
 
-        // Create button with SF Symbol
+        // Create button with SF Symbol and title
         button = NSButton()
         button.bezelStyle = .texturedRounded
         button.isBordered = false
-        button.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: "Open With")
-        button.imagePosition = .imageOnly
-        button.contentTintColor = .controlTextColor
+        button.title = "Open"
+        button.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: "Open")
+        button.imagePosition = .imageTrailing
+        button.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        button.contentTintColor = .secondaryLabelColor
 
         super.init(frame: .zero)
 
         setupViews()
         updateTransparencySettings()
         observeAccessibilityChanges()
-        alphaValue = 0 // Start hidden
+        alphaValue = 1
     }
 
     required init?(coder: NSCoder) {
@@ -68,20 +65,19 @@ final class OpenWithButton: NSView {
             visualEffectView.trailingAnchor.constraint(equalTo: trailingAnchor),
             visualEffectView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-            // Button centered in visual effect view with padding
-            button.centerXAnchor.constraint(equalTo: visualEffectView.centerXAnchor),
-            button.centerYAnchor.constraint(equalTo: visualEffectView.centerYAnchor),
-            button.widthAnchor.constraint(equalToConstant: 28),
-            button.heightAnchor.constraint(equalToConstant: 28),
+            // Button with horizontal padding
+            button.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
+            button.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor, constant: 10),
+            button.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor, constant: -10),
+            button.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor),
 
-            // Container size
-            widthAnchor.constraint(equalToConstant: 44),
-            heightAnchor.constraint(equalToConstant: 44)
+            // Container height
+            heightAnchor.constraint(equalToConstant: 24)
         ])
 
         // Accessibility
         setAccessibilityRole(.button)
-        setAccessibilityLabel("Open With")
+        setAccessibilityLabel("Open")
         setAccessibilityHelp("Opens this file in another application")
         focusRingType = .exterior
     }
@@ -111,76 +107,30 @@ final class OpenWithButton: NSView {
         }
     }
 
-    // MARK: - Visibility
-
-    func show() {
-        guard !isVisible else { return }
-        isVisible = true
-
-        fadeTimer?.invalidate()
-
-        if reduceMotionEnabled {
-            alphaValue = 1.0
-        } else {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = fadeInDuration
-                context.allowsImplicitAnimation = true
-                animator().alphaValue = 1.0
-            }
-        }
-
-        // Schedule fade out
-        scheduleFadeOut()
-    }
-
-    func hide(animated: Bool = true) {
-        guard isVisible else { return }
-        isVisible = false
-
-        fadeTimer?.invalidate()
-
-        if reduceMotionEnabled || !animated {
-            alphaValue = 0.0
-        } else {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = fadeInDuration
-                context.allowsImplicitAnimation = true
-                animator().alphaValue = 0.0
-            }
-        }
-    }
-
-    private func scheduleFadeOut() {
-        fadeTimer?.invalidate()
-        fadeTimer = Timer.scheduledTimer(withTimeInterval: fadeOutDelay, repeats: false) { [weak self] _ in
-            self?.hide()
-        }
-    }
-
-    func resetFadeOutTimer() {
-        if isVisible {
-            scheduleFadeOut()
-        }
-    }
-
     // MARK: - Button Action
 
     @objc private func buttonClicked() {
         let menu = NSMenu()
 
-        // Get applications that can open this file
+        // Get applications that can open this file, excluding this app
+        let ownBundleURL = Bundle.main.bundleURL.standardizedFileURL
         let apps = NSWorkspace.shared.urlsForApplications(toOpen: fileURL)
+            .filter { $0.standardizedFileURL != ownBundleURL }
 
         if apps.isEmpty {
             let item = NSMenuItem(title: "No applications available", action: nil, keyEquivalent: "")
             item.isEnabled = false
             menu.addItem(item)
         } else {
+            let iconSize = NSSize(width: 16, height: 16)
             for appURL in apps {
                 let appName = appURL.deletingPathExtension().lastPathComponent
                 let item = NSMenuItem(title: appName, action: #selector(openWithApp(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = appURL
+                let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+                icon.size = iconSize
+                item.image = icon
                 menu.addItem(item)
             }
         }
@@ -196,10 +146,10 @@ final class OpenWithButton: NSView {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
 
-        NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: configuration) { _, error in
+        NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: configuration) { [weak self] _, error in
             if let error = error {
                 DispatchQueue.main.async {
-                    self.showError(error)
+                    self?.showError(error)
                 }
             }
         }

@@ -29,11 +29,11 @@ final class RenderPipeline {
 
             let attributed = MarkdownRenderer.render(markdown, theme: theme)
 
-            // Check if cancelled before delivering
-            if self.currentTask?.isCancelled == false {
-                DispatchQueue.main.async {
-                    completion(RenderResult(attributedString: attributed, theme: theme))
-                }
+            // Capture task reference to check inside main queue block
+            let workItem = self.currentTask
+            DispatchQueue.main.async {
+                guard workItem?.isCancelled == false else { return }
+                completion(RenderResult(attributedString: attributed, theme: theme))
             }
         }
 
@@ -55,23 +55,24 @@ final class RenderPipeline {
         let task = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
 
+            // Capture task reference to check inside main queue blocks
+            let workItem = self.currentTask
+
             let full = MarkdownRenderer.renderProgressive(
                 markdown,
                 theme: theme,
                 firstScreenBlocks: 30
             ) { firstScreen in
                 // Deliver first-screen snapshot immediately
-                if self.currentTask?.isCancelled == false {
-                    DispatchQueue.main.async {
-                        onFirstScreen(RenderResult(attributedString: firstScreen, theme: theme))
-                    }
+                DispatchQueue.main.async {
+                    guard workItem?.isCancelled == false else { return }
+                    onFirstScreen(RenderResult(attributedString: firstScreen, theme: theme))
                 }
             }
 
-            if self.currentTask?.isCancelled == false {
-                DispatchQueue.main.async {
-                    onComplete(RenderResult(attributedString: full, theme: theme))
-                }
+            DispatchQueue.main.async {
+                guard workItem?.isCancelled == false else { return }
+                onComplete(RenderResult(attributedString: full, theme: theme))
             }
         }
 

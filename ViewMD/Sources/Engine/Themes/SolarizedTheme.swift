@@ -6,10 +6,12 @@ struct SolarizedLight: Theme {
     let name = "Solarized Light"
     let baseFontSize: CGFloat
     let fontFamily: String
+    let codeFontFamily: String
 
-    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono") {
+    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono", codeFontFamily: String = "SF Mono") {
         self.baseFontSize = baseFontSize
         self.fontFamily = fontFamily
+        self.codeFontFamily = codeFontFamily
     }
 
     // Solarized color palette
@@ -35,12 +37,23 @@ struct SolarizedLight: Theme {
     var textColor: NSColor { base00 }
     var linkColor: NSColor { blue }
     var codeBackgroundColor: NSColor { base2 }
-    var codeTextColor: NSColor { cyan }
+    var codeTextColor: NSColor { base00 }
     var blockquoteColor: NSColor { base01 }
     var blockquoteBarColor: NSColor { base1 }
+    var highlightrTheme: String { "solarized-light" }
 
     func headingColor(level: Int) -> NSColor {
         return base01
+    }
+
+    func admonitionColor(type: AdmonitionType) -> NSColor {
+        switch type {
+        case .note:      return blue
+        case .tip:       return cyan
+        case .important: return violet
+        case .warning:   return yellow
+        case .caution:   return red
+        }
     }
 }
 
@@ -50,10 +63,12 @@ struct SolarizedDark: Theme {
     let name = "Solarized Dark"
     let baseFontSize: CGFloat
     let fontFamily: String
+    let codeFontFamily: String
 
-    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono") {
+    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono", codeFontFamily: String = "SF Mono") {
         self.baseFontSize = baseFontSize
         self.fontFamily = fontFamily
+        self.codeFontFamily = codeFontFamily
     }
 
     // Solarized color palette
@@ -79,11 +94,22 @@ struct SolarizedDark: Theme {
     var textColor: NSColor { base0 }
     var linkColor: NSColor { blue }
     var codeBackgroundColor: NSColor { base02 }
-    var codeTextColor: NSColor { cyan }
+    var codeTextColor: NSColor { base0 }
     var blockquoteColor: NSColor { base1 }
     var blockquoteBarColor: NSColor { base01 }
+    var highlightrTheme: String { "solarized-dark" }
 
     func headingColor(level: Int) -> NSColor {
         return base1
+    }
+
+    func admonitionColor(type: AdmonitionType) -> NSColor {
+        switch type {
+        case .note:      return blue
+        case .tip:       return cyan
+        case .important: return violet
+        case .warning:   return yellow
+        case .caution:   return red
+        }
     }
 }

@@ -10,6 +10,9 @@ extension NSAttributedString.Key {
 
     /// Heading level (1–6) for VoiceOver rotor navigation.
     static let accessibilityHeadingLevel = NSAttributedString.Key("MrkdHeadingLevel")
+
+    /// Border color for inline code spans, drawn by CodeBorderLayoutManager.
+    static let inlineCodeBorderColor = NSAttributedString.Key("MrkdInlineCodeBorder")
 }
 
 enum MarkdownRenderer {
@@ -49,12 +52,15 @@ enum MarkdownRenderer {
 
     // MARK: - GFM Extensions
 
+    private static let staticStateLock = DispatchQueue(label: "com.mrkd.renderer.static")
     private static var extensionsRegistered = false
 
     private static func registerGFMExtensions() {
-        guard !extensionsRegistered else { return }
-        extensionsRegistered = true
-        cmark_gfm_core_extensions_ensure_registered()
+        staticStateLock.sync {
+            guard !extensionsRegistered else { return }
+            extensionsRegistered = true
+            cmark_gfm_core_extensions_ensure_registered()
+        }
     }
 
     private typealias CMarkNode = UnsafeMutablePointer<cmark_node>
@@ -77,28 +83,38 @@ enum MarkdownRenderer {
     private static var _highlightr: Highlightr?
     private static var _highlightrThemeName: String = ""
 
+    /// Release the Highlightr JavaScriptCore context to reclaim memory.
+    /// It will be lazily re-created on the next syntax highlight call.
+    static func clearHighlightrCache() {
+        staticStateLock.sync {
+            _highlightr = nil
+            _highlightrThemeName = ""
+        }
+    }
+
     private static func syntaxHighlight(_ code: String, language: String, theme: Theme) -> NSAttributedString? {
-        let highlightr: Highlightr
-        if let existing = _highlightr {
-            highlightr = existing
-        } else {
-            guard let h = Highlightr() else { return nil }
-            _highlightr = h
-            highlightr = h
+        return staticStateLock.sync {
+            let highlightr: Highlightr
+            if let existing = _highlightr {
+                highlightr = existing
+            } else {
+                guard let h = Highlightr() else { return nil }
+                _highlightr = h
+                highlightr = h
+            }
+
+            let themeName = theme.highlightrTheme
+            if _highlightrThemeName != themeName {
+                highlightr.setTheme(to: themeName)
+                _highlightrThemeName = themeName
+            }
+
+            let codeFont = NSFont(name: theme.codeFontFamily, size: theme.codeFontSize)
+                ?? NSFont.monospacedSystemFont(ofSize: theme.codeFontSize, weight: .regular)
+            highlightr.theme.codeFont = codeFont
+
+            return highlightr.highlight(code, as: language)
         }
-
-        let isDark = (theme.backgroundColor.usingColorSpace(.sRGB)?.brightnessComponent ?? 0.5) < 0.5
-        let themeName = isDark ? "atom-one-dark" : "atom-one-light"
-        if _highlightrThemeName != themeName {
-            highlightr.setTheme(to: themeName)
-            _highlightrThemeName = themeName
-        }
-
-        let codeFont = NSFont(name: theme.fontFamily, size: theme.codeFontSize)
-            ?? NSFont.monospacedSystemFont(ofSize: theme.codeFontSize, weight: .regular)
-        highlightr.theme.codeFont = codeFont
-
-        return highlightr.highlight(code, as: language)
     }
 
     // MARK: - AST Traversal
@@ -177,16 +193,28 @@ enum MarkdownRenderer {
             let strongResult = NSMutableAttributedString()
             renderChildren(of: node, into: strongResult, theme: theme, listDepth: listDepth, listIndex: listIndex, isOrdered: isOrdered)
             let range = NSRange(location: 0, length: strongResult.length)
-            if let currentFont = strongResult.attribute(.font, at: 0, effectiveRange: nil) as? NSFont {
-                let boldFont = NSFontManager.shared.convert(currentFont, toHaveTrait: .boldFontMask)
-                strongResult.addAttribute(.font, value: boldFont, range: range)
+            // Bump weight by one level: body (~450) → medium (500), heading (semibold) → bold
+            strongResult.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
+                if let currentFont = value as? NSFont {
+                    strongResult.addAttribute(.font, value: theme.fontByBumpingWeight(currentFont), range: subRange)
+                }
             }
             result.append(strongResult)
 
         case CMARK_NODE_CODE:
             if let literal = cmark_node_get_literal(node) {
                 let code = String(cString: literal)
+                // Thin spaces outside the code span create real outer margin around the border.
+                // These carry no .inlineCodeBorderColor so the layout manager won't draw
+                // a border over them — they're just spacer characters in the text layout.
+                let spacerAttrs: [NSAttributedString.Key: Any] = [
+                    .font: theme.bodyFont,
+                    .foregroundColor: theme.textColor,
+                ]
+                let spacer = NSAttributedString(string: "\u{2009}", attributes: spacerAttrs)
+                result.append(spacer)
                 result.append(NSAttributedString(string: code, attributes: theme.inlineCodeAttributes))
+                result.append(spacer)
             }
 
         case CMARK_NODE_CODE_BLOCK:
@@ -241,11 +269,7 @@ enum MarkdownRenderer {
             }
 
         case CMARK_NODE_ITEM:
-            let indent = String(repeating: "    ", count: listDepth)
-
             // Check if this is a task list item
-            // The function returns true if the item is checked, and we need to check if it's a tasklist item first
-            // by checking the parent list's type string
             var isTaskList = false
             var isChecked = false
 
@@ -253,10 +277,8 @@ enum MarkdownRenderer {
                let typeName = cmark_node_get_type_string(parent) {
                 let parentType = String(cString: typeName)
                 if parentType.contains("list") {
-                    // Try to get tasklist status - if this is a tasklist item, the function will return the checked state
                     isChecked = cmark_gfm_extensions_get_tasklist_item_checked(node)
-                    // We need to check if this node has the tasklist extension data
-                    // For now, we'll check the first child to see if it starts with [ ] or [x]
+                    // Check if this node has the tasklist extension data
                     if let firstChild = cmark_node_first_child(node),
                        cmark_node_get_type(firstChild) == CMARK_NODE_PARAGRAPH,
                        let firstText = cmark_node_first_child(firstChild),
@@ -272,19 +294,40 @@ enum MarkdownRenderer {
 
             let bullet: String
             if isTaskList {
-                bullet = isChecked ? "\u{2611} " : "\u{2610} " // ☑ or ☐
+                bullet = isChecked ? "\u{2611}\t" : "\u{2610}\t" // ☑ or ☐
             } else if isOrdered {
                 let start = max(1, Int(cmark_node_get_list_start(cmark_node_parent(node))))
-                bullet = "\(start + listIndex). "
+                bullet = "\(start + listIndex).\t"
             } else {
-                bullet = "\u{2022} " // bullet character
+                bullet = "\u{2022}\t" // bullet character + tab
             }
 
-            var attrs = theme.bodyAttributes
-            attrs[.foregroundColor] = (attrs[.foregroundColor] as? NSColor) ?? NSColor.labelColor
-            result.append(NSAttributedString(string: indent + bullet, attributes: attrs))
+            // Tab-stop based indentation for consistent bullet-to-text spacing.
+            let indentPerLevel: CGFloat = 24
+            let depthIndent = CGFloat(listDepth) * indentPerLevel
+            let bulletColumnWidth: CGFloat = 18
+            let textIndent = depthIndent + bulletColumnWidth
 
-            // If this is a task list, skip the checkbox markers from the text
+            let listStyle = NSMutableParagraphStyle()
+            listStyle.lineSpacing = 2
+            listStyle.paragraphSpacing = 2
+            listStyle.tabStops = [NSTextTab(textAlignment: .left, location: textIndent, options: [:])]
+            listStyle.defaultTabInterval = 36
+            listStyle.firstLineHeadIndent = depthIndent
+            listStyle.headIndent = textIndent
+
+            // Append bullet — render unordered bullets slightly larger for visibility.
+            var bulletAttrs = theme.bodyAttributes
+            bulletAttrs[.paragraphStyle] = listStyle
+            if !isTaskList && !isOrdered {
+                let bulletSize = theme.baseFontSize * 1.15
+                bulletAttrs[.font] = theme.font(size: bulletSize, weight: .regular)
+                // Nudge down to visually center with text baseline
+                bulletAttrs[.baselineOffset] = -0.5
+            }
+            result.append(NSAttributedString(string: bullet, attributes: bulletAttrs))
+
+            // Handle task list special case
             if isTaskList {
                 var child = cmark_node_first_child(node)
                 while let childNode = child {
@@ -295,6 +338,7 @@ enum MarkdownRenderer {
                         let text = String(cString: literal)
                         // Remove the checkbox marker from the beginning
                         if text.hasPrefix("[ ] ") || text.hasPrefix("[x] ") || text.hasPrefix("[X] ") {
+                            let rangeStart = result.length
                             let cleaned = String(text.dropFirst(4))
                             // Render the cleaned text
                             result.append(NSAttributedString(string: cleaned, attributes: theme.bodyAttributes))
@@ -304,12 +348,30 @@ enum MarkdownRenderer {
                                 renderNode(siblingNode, into: result, theme: theme, listDepth: listDepth, listIndex: listIndex, isOrdered: isOrdered)
                                 sibling = cmark_node_next(siblingNode)
                             }
-                            // Skip the rest of the children since we've rendered them
+                            // Apply list style to rendered text
+                            let rangeLen = result.length - rangeStart
+                            if rangeLen > 0 {
+                                result.addAttribute(.paragraphStyle, value: listStyle, range: NSRange(location: rangeStart, length: rangeLen))
+                            }
+                            // Render remaining children (e.g. nested lists)
                             child = cmark_node_next(childNode)
                             while let nextChild = child {
-                                renderNode(nextChild, into: result, theme: theme, listDepth: listDepth, listIndex: listIndex, isOrdered: isOrdered)
+                                let nextType = cmark_node_get_type(nextChild)
+                                if nextType == CMARK_NODE_LIST {
+                                    // Nested list handles its own indentation
+                                    renderNode(nextChild, into: result, theme: theme, listDepth: listDepth, listIndex: 0, isOrdered: false)
+                                } else {
+                                    let childRangeStart = result.length
+                                    renderNode(nextChild, into: result, theme: theme, listDepth: listDepth, listIndex: listIndex, isOrdered: isOrdered)
+                                    let childRangeLen = result.length - childRangeStart
+                                    if childRangeLen > 0 {
+                                        result.addAttribute(.paragraphStyle, value: listStyle, range: NSRange(location: childRangeStart, length: childRangeLen))
+                                    }
+                                }
                                 child = cmark_node_next(nextChild)
                             }
+                            // Single newline to separate from the next list item
+                            result.append(NSAttributedString(string: "\n"))
                             return
                         }
                     }
@@ -317,7 +379,30 @@ enum MarkdownRenderer {
                 }
             }
 
-            renderChildren(of: node, into: result, theme: theme, listDepth: listDepth, listIndex: listIndex, isOrdered: isOrdered)
+            // Render children manually to handle nested lists correctly
+            var child = cmark_node_first_child(node)
+            while let childNode = child {
+                let childType = cmark_node_get_type(childNode)
+                if childType == CMARK_NODE_LIST {
+                    // Nested list handles its own indentation
+                    renderNode(childNode, into: result, theme: theme, listDepth: listDepth, listIndex: 0, isOrdered: false)
+                } else {
+                    // Paragraph or other content — render then apply list style
+                    let rangeStart = result.length
+                    if childType == CMARK_NODE_PARAGRAPH {
+                        renderChildren(of: childNode, into: result, theme: theme, listDepth: listDepth, listIndex: listIndex, isOrdered: isOrdered)
+                        // Single newline for tight list items (not appendNewlines which adds \n\n)
+                        result.append(NSAttributedString(string: "\n"))
+                    } else {
+                        renderNode(childNode, into: result, theme: theme, listDepth: listDepth, listIndex: listIndex, isOrdered: isOrdered)
+                    }
+                    let rangeLen = result.length - rangeStart
+                    if rangeLen > 0 {
+                        result.addAttribute(.paragraphStyle, value: listStyle, range: NSRange(location: rangeStart, length: rangeLen))
+                    }
+                }
+                child = cmark_node_next(childNode)
+            }
 
         case CMARK_NODE_BLOCK_QUOTE:
             renderBlockquote(node, into: result, theme: theme, listDepth: listDepth)
@@ -423,9 +508,121 @@ enum MarkdownRenderer {
             linkResult.addAttribute(.foregroundColor, value: theme.linkColor, range: range)
             linkResult.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
             linkResult.addAttribute(.toolTip, value: urlString, range: range)
+            // Links at medium weight for subtle visual distinction
+            linkResult.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
+                if let currentFont = value as? NSFont {
+                    let mediumFont = theme.font(size: currentFont.pointSize, weight: .medium)
+                    linkResult.addAttribute(.font, value: mediumFont, range: subRange)
+                }
+            }
         }
 
         result.append(linkResult)
+    }
+
+    private static func detectAdmonition(in blockquoteNode: CMarkNode) -> AdmonitionType? {
+        // Get first child (should be a paragraph)
+        guard let firstChild = cmark_node_first_child(blockquoteNode),
+              cmark_node_get_type(firstChild) == CMARK_NODE_PARAGRAPH else { return nil }
+
+        // Get first text node of that paragraph
+        guard let textNode = cmark_node_first_child(firstChild),
+              cmark_node_get_type(textNode) == CMARK_NODE_TEXT,
+              let literal = cmark_node_get_literal(textNode) else { return nil }
+
+        let text = String(cString: literal)
+
+        // Check for [!TYPE] pattern at start
+        for type in AdmonitionType.allCases {
+            let marker = "[!\(type.rawValue.uppercased())]"
+            if text.hasPrefix(marker) {
+                return type
+            }
+        }
+        return nil
+    }
+
+    private static func renderAdmonition(
+        _ node: CMarkNode,
+        type: AdmonitionType,
+        into result: NSMutableAttributedString,
+        theme: Theme,
+        listDepth: Int
+    ) {
+        // Render all children
+        let admonitionResult = NSMutableAttributedString()
+        renderChildren(of: node, into: admonitionResult, theme: theme, listDepth: listDepth, listIndex: 0, isOrdered: false)
+
+        // Strip the [!TYPE] marker from the beginning
+        let marker = "[!\(type.rawValue.uppercased())]"
+        let text = admonitionResult.string
+        if text.hasPrefix(marker) {
+            var charsToRemove = marker.count
+            // Strip trailing whitespace/newline left by the soft break or hard break after the marker
+            if text.count > marker.count {
+                let nextChar = text[text.index(text.startIndex, offsetBy: marker.count)]
+                if nextChar == "\n" || nextChar == " " {
+                    charsToRemove += 1
+                }
+            }
+            admonitionResult.deleteCharacters(in: NSRange(location: 0, length: charsToRemove))
+        }
+
+        // Get icon and label for this type
+        let icon: String
+        let label: String
+        switch type {
+        case .note:
+            icon = "\u{270F}"  // Pencil
+            label = "Note"
+        case .tip:
+            icon = "\u{1F4A1}"  // Light bulb
+            label = "Tip"
+        case .important:
+            icon = "\u{2757}"  // Exclamation mark
+            label = "Important"
+        case .warning:
+            icon = "\u{26A0}\u{FE0F}"  // Warning sign
+            label = "Warning"
+        case .caution:
+            icon = "\u{1F6D1}"  // Stop sign
+            label = "Caution"
+        }
+
+        // Create label line with icon and type name
+        let labelText = "\(icon) \(label)\n"
+        let labelFont = theme.font(size: theme.baseFontSize, weight: .semibold)
+        let labelColor = theme.admonitionColor(type: type)
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: labelColor
+        ]
+        let labelString = NSAttributedString(string: labelText, attributes: labelAttrs)
+
+        // Prepend label to content
+        admonitionResult.insert(labelString, at: 0)
+
+        // Create text block with admonition styling
+        let range = NSRange(location: 0, length: admonitionResult.length)
+        let block = NSTextBlock()
+        block.backgroundColor = theme.admonitionBackgroundColor(type: type)
+        block.setBorderColor(theme.admonitionColor(type: type), for: .minX)
+        block.setWidth(3, type: .absoluteValueType, for: .border, edge: .minX)
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .minX)
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .maxX)
+        block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .minY)
+        block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .maxY)
+        block.setValue(100, type: .percentageValueType, for: .width)
+
+        // Apply the text block to all paragraphs
+        admonitionResult.enumerateAttribute(.paragraphStyle, in: range, options: []) { value, subRange, _ in
+            let existing = (value as? NSParagraphStyle) ?? NSParagraphStyle.default
+            let style = existing.mutableCopy() as! NSMutableParagraphStyle
+            style.textBlocks = [block] + existing.textBlocks
+            admonitionResult.addAttribute(.paragraphStyle, value: style, range: subRange)
+        }
+
+        result.append(admonitionResult)
     }
 
     private static func renderBlockquote(
@@ -434,24 +631,37 @@ enum MarkdownRenderer {
         theme: Theme,
         listDepth: Int
     ) {
+        // Check for GitHub-style admonition
+        if let admonitionType = detectAdmonition(in: node) {
+            renderAdmonition(node, type: admonitionType, into: result, theme: theme, listDepth: listDepth)
+            return
+        }
+
+        // Standard blockquote rendering
         let quoteResult = NSMutableAttributedString()
         renderChildren(of: node, into: quoteResult, theme: theme, listDepth: listDepth, listIndex: 0, isOrdered: false)
 
         let range = NSRange(location: 0, length: quoteResult.length)
 
-        // Apply blockquote styling
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.headIndent = 20
-        paragraphStyle.firstLineHeadIndent = 20
-        quoteResult.addAttribute(.paragraphStyle, value: paragraphStyle, range: range)
+        // Single text block shared by all paragraphs — TextKit draws one
+        // continuous left border spanning the full blockquote height.
+        let block = NSTextBlock()
+        block.backgroundColor = .clear
+        block.setBorderColor(theme.blockquoteBarColor, for: .minX)
+        block.setWidth(3, type: .absoluteValueType, for: .border, edge: .minX)
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .minX)
+        block.setValue(100, type: .percentageValueType, for: .width)
+
         quoteResult.addAttribute(.foregroundColor, value: theme.blockquoteColor, range: range)
 
-        // Prefix with vertical bar
-        let prefix = NSAttributedString(string: "\u{2502} ", attributes: [
-            .foregroundColor: theme.blockquoteBarColor,
-            .font: theme.bodyFont,
-        ])
-        quoteResult.insert(prefix, at: 0)
+        // Add the text block to every paragraph style, preserving existing formatting.
+        // Prepend (outermost first) so nested blockquotes keep their inner bars.
+        quoteResult.enumerateAttribute(.paragraphStyle, in: range, options: []) { value, subRange, _ in
+            let existing = (value as? NSParagraphStyle) ?? NSParagraphStyle.default
+            let style = existing.mutableCopy() as! NSMutableParagraphStyle
+            style.textBlocks = [block] + existing.textBlocks
+            quoteResult.addAttribute(.paragraphStyle, value: style, range: subRange)
+        }
 
         result.append(quoteResult)
     }
@@ -561,6 +771,125 @@ enum MarkdownRenderer {
 
     // MARK: - Helpers
 
+    /// Check if a node type is a block-level element (for spacing purposes)
+    private static func isBlockLevelNode(_ type: cmark_node_type) -> Bool {
+        switch type {
+        case CMARK_NODE_PARAGRAPH,
+             CMARK_NODE_HEADING,
+             CMARK_NODE_CODE_BLOCK,
+             CMARK_NODE_BLOCK_QUOTE,
+             CMARK_NODE_LIST,
+             CMARK_NODE_THEMATIC_BREAK,
+             CMARK_NODE_HTML_BLOCK:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Check if a GFM extension type string represents a block-level element
+    private static func isBlockLevelExtension(_ typeName: String) -> Bool {
+        return typeName == "table"
+    }
+
+    /// Apply contextual spacing before a block element based on its predecessor
+    private static func applyContextualSpacing(
+        to result: NSMutableAttributedString,
+        startPosition: Int,
+        currentNodeType: cmark_node_type,
+        currentExtensionType: String?,
+        previousNodeType: cmark_node_type?,
+        previousExtensionType: String?,
+        theme: Theme
+    ) {
+        // Skip if current node is heading (headings manage their own spacing)
+        if currentNodeType == CMARK_NODE_HEADING {
+            return
+        }
+
+        // Skip if we're at the document start
+        guard let prevType = previousNodeType else {
+            return
+        }
+
+        let baseFontSize = theme.baseFontSize
+
+        // Determine spacing based on predecessor and current node types
+        let spacing: CGFloat
+
+        // Helper to check if extension type is table
+        let currentIsTable = currentExtensionType.map { isBlockLevelExtension($0) } ?? false
+        let prevIsTable = previousExtensionType.map { isBlockLevelExtension($0) } ?? false
+
+        // After HEADING → any block element: 0 (heading's own spacing is enough)
+        if prevType == CMARK_NODE_HEADING {
+            spacing = 0
+        }
+        // After PARAGRAPH → PARAGRAPH: baseFontSize * 0.4 (~5pt extra)
+        else if prevType == CMARK_NODE_PARAGRAPH && currentNodeType == CMARK_NODE_PARAGRAPH {
+            spacing = baseFontSize * 0.4
+        }
+        // After PARAGRAPH → LIST: 0 (tight coupling)
+        else if prevType == CMARK_NODE_PARAGRAPH && currentNodeType == CMARK_NODE_LIST {
+            spacing = 0
+        }
+        // After PARAGRAPH → CODE_BLOCK/BLOCK_QUOTE/table: baseFontSize * 0.8
+        else if prevType == CMARK_NODE_PARAGRAPH &&
+                (currentNodeType == CMARK_NODE_CODE_BLOCK ||
+                 currentNodeType == CMARK_NODE_BLOCK_QUOTE ||
+                 currentIsTable) {
+            spacing = baseFontSize * 0.8
+        }
+        // After CODE_BLOCK/BLOCK_QUOTE/table → any block element: baseFontSize * 0.8
+        else if prevType == CMARK_NODE_CODE_BLOCK ||
+                prevType == CMARK_NODE_BLOCK_QUOTE ||
+                prevIsTable {
+            spacing = baseFontSize * 0.8
+        }
+        // After LIST → any block element: baseFontSize * 0.8
+        else if prevType == CMARK_NODE_LIST {
+            spacing = baseFontSize * 0.8
+        }
+        // After THEMATIC_BREAK → any block element: 0
+        else if prevType == CMARK_NODE_THEMATIC_BREAK {
+            spacing = 0
+        }
+        // Default: no extra spacing
+        else {
+            spacing = 0
+        }
+
+        // Apply the spacing to the first paragraph in the range
+        guard spacing > 0 && result.length > startPosition else {
+            return
+        }
+
+        let text = result.string
+        let startIdx = text.index(text.startIndex, offsetBy: startPosition)
+        guard startIdx < text.endIndex else { return }
+
+        // Find the first newline to determine the first paragraph's range
+        let endIdx = text[startIdx...].firstIndex(of: "\n") ?? text.endIndex
+        let firstParaLength = text.distance(from: startIdx, to: endIdx)
+
+        guard firstParaLength > 0 else { return }
+
+        // Get existing paragraph style or create one
+        let existingStyle: NSParagraphStyle
+        if let ps = result.attribute(.paragraphStyle, at: startPosition, effectiveRange: nil) as? NSParagraphStyle {
+            existingStyle = ps
+        } else {
+            existingStyle = NSParagraphStyle.default
+        }
+
+        // Create mutable copy and set paragraphSpacingBefore
+        let mutableStyle = existingStyle.mutableCopy() as! NSMutableParagraphStyle
+        mutableStyle.paragraphSpacingBefore = spacing
+
+        // Apply to the first paragraph only
+        result.addAttribute(.paragraphStyle, value: mutableStyle, range: NSRange(location: startPosition, length: firstParaLength))
+    }
+
     private static func renderChildren(
         of node: CMarkNode,
         into result: NSMutableAttributedString,
@@ -570,8 +899,39 @@ enum MarkdownRenderer {
         isOrdered: Bool
     ) {
         var child = cmark_node_first_child(node)
+        var previousType: cmark_node_type? = nil
+        var previousExtensionType: String? = nil
+
         while let childNode = child {
+            let childType = cmark_node_get_type(childNode)
+            let startPosition = result.length
+
+            // Check if this is a GFM extension node
+            var extensionType: String? = nil
+            if let typeName = cmark_node_get_type_string(childNode) {
+                extensionType = String(cString: typeName)
+            }
+
+            // Render the child
             renderNode(childNode, into: result, theme: theme, listDepth: listDepth, listIndex: listIndex, isOrdered: isOrdered)
+
+            // Apply contextual spacing if this is a block-level node
+            if isBlockLevelNode(childType) || (extensionType.map { isBlockLevelExtension($0) } ?? false) {
+                applyContextualSpacing(
+                    to: result,
+                    startPosition: startPosition,
+                    currentNodeType: childType,
+                    currentExtensionType: extensionType,
+                    previousNodeType: previousType,
+                    previousExtensionType: previousExtensionType,
+                    theme: theme
+                )
+
+                // Update previous type for next iteration
+                previousType = childType
+                previousExtensionType = extensionType
+            }
+
             child = cmark_node_next(childNode)
         }
     }
@@ -634,9 +994,38 @@ enum MarkdownRenderer {
         var blockIndex = 0
         var deliveredFirstScreen = false
         var child = cmark_node_first_child(doc)
+        var previousType: cmark_node_type? = nil
+        var previousExtensionType: String? = nil
 
         while let block = child {
+            let blockType = cmark_node_get_type(block)
+            let startPosition = result.length
+
+            // Check if this is a GFM extension node
+            var extensionType: String? = nil
+            if let typeName = cmark_node_get_type_string(block) {
+                extensionType = String(cString: typeName)
+            }
+
             renderNode(block, into: result, theme: theme, listDepth: 0, listIndex: 0, isOrdered: false)
+
+            // Apply contextual spacing for top-level blocks
+            if isBlockLevelNode(blockType) || (extensionType.map { isBlockLevelExtension($0) } ?? false) {
+                applyContextualSpacing(
+                    to: result,
+                    startPosition: startPosition,
+                    currentNodeType: blockType,
+                    currentExtensionType: extensionType,
+                    previousNodeType: previousType,
+                    previousExtensionType: previousExtensionType,
+                    theme: theme
+                )
+
+                // Update previous type for next iteration
+                previousType = blockType
+                previousExtensionType = extensionType
+            }
+
             blockIndex += 1
 
             if !deliveredFirstScreen && blockIndex >= firstScreenBlocks {

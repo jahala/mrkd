@@ -22,45 +22,64 @@ final class TextInteractionHandler: NSObject, NSTextViewDelegate {
     // MARK: - Context Menu
 
     func textView(_ textView: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
-        // The `menu` parameter is the default context menu already built by NSTextView.
-        // Do NOT call textView.menu(for:) again — that creates duplicate submenus
-        // with broken parent references ("Internal inconsistency in menus" warnings).
+        // Build the context menu from scratch. NSTextView's default `menu` carries
+        // orphaned submenus (Font, Spelling, Substitutions, etc.) with broken
+        // parent references, causing "Internal inconsistency in menus" warnings.
+        // Since this is a read-only viewer, none of those submenus are needed.
+        let contextMenu = NSMenu()
 
-        // Check if there's a link at the click location
+        let hasSelection = textView.selectedRange().length > 0
+
+        // Copy
+        if hasSelection {
+            contextMenu.addItem(NSMenuItem(
+                title: "Copy",
+                action: #selector(NSText.copy(_:)),
+                keyEquivalent: ""
+            ))
+        }
+
+        // Select All
+        contextMenu.addItem(NSMenuItem(
+            title: "Select All",
+            action: #selector(NSText.selectAll(_:)),
+            keyEquivalent: ""
+        ))
+
+        // Link actions
         if let linkURL = linkAtCharIndex(charIndex, in: textView) {
-            menu.addItem(NSMenuItem.separator())
+            contextMenu.addItem(.separator())
 
             let openLinkItem = NSMenuItem(title: "Open Link", action: #selector(openContextLink(_:)), keyEquivalent: "")
             openLinkItem.target = self
             openLinkItem.representedObject = linkURL
-            menu.addItem(openLinkItem)
+            contextMenu.addItem(openLinkItem)
 
             let copyLinkItem = NSMenuItem(title: "Copy Link", action: #selector(copyLink(_:)), keyEquivalent: "")
             copyLinkItem.target = self
             copyLinkItem.representedObject = linkURL
-            menu.addItem(copyLinkItem)
+            contextMenu.addItem(copyLinkItem)
         }
 
-        // Add "Search with Google" for selected text
+        // Search with Google
         if let selectedText = textView.selectedText(), !selectedText.isEmpty {
-            menu.addItem(NSMenuItem.separator())
+            contextMenu.addItem(.separator())
 
             let searchItem = NSMenuItem(title: "Search with Google", action: #selector(searchWithGoogle(_:)), keyEquivalent: "")
             searchItem.target = self
             searchItem.representedObject = selectedText
-            menu.addItem(searchItem)
+            contextMenu.addItem(searchItem)
         }
 
-        // Add Share menu - using NSSharingServicePicker's standard menu item
+        // Share
         if let selectedText = textView.selectedText(), !selectedText.isEmpty {
-            menu.addItem(NSMenuItem.separator())
+            contextMenu.addItem(.separator())
 
             let sharingPicker = NSSharingServicePicker(items: [selectedText])
-            let shareMenuItem = sharingPicker.standardShareMenuItem
-            menu.addItem(shareMenuItem)
+            contextMenu.addItem(sharingPicker.standardShareMenuItem)
         }
 
-        return menu
+        return contextMenu
     }
 
     // MARK: - Context Menu Actions

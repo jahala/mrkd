@@ -4,10 +4,12 @@ struct DraculaTheme: Theme {
     let name = "Dracula"
     let baseFontSize: CGFloat
     let fontFamily: String
+    let codeFontFamily: String
 
-    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono") {
+    init(baseFontSize: CGFloat = 13, fontFamily: String = "SF Mono", codeFontFamily: String = "SF Mono") {
         self.baseFontSize = baseFontSize
         self.fontFamily = fontFamily
+        self.codeFontFamily = codeFontFamily
     }
 
     // Dracula color palette
@@ -28,13 +30,24 @@ struct DraculaTheme: Theme {
     var codeBackgroundColor: NSColor {
         NSColor(red: 0x21/255.0, green: 0x22/255.0, blue: 0x2c/255.0, alpha: 1.0)
     }
-    var codeTextColor: NSColor { green }
+    var codeTextColor: NSColor { fg }
     var blockquoteColor: NSColor { comment }
     var blockquoteBarColor: NSColor {
         NSColor(red: 0x44/255.0, green: 0x47/255.0, blue: 0x5a/255.0, alpha: 1.0)
     }
+    var highlightrTheme: String { "dracula" }
 
     func headingColor(level: Int) -> NSColor {
         return purple
+    }
+
+    func admonitionColor(type: AdmonitionType) -> NSColor {
+        switch type {
+        case .note:      return cyan
+        case .tip:       return green
+        case .important: return purple
+        case .warning:   return orange
+        case .caution:   return red
+        }
     }
 }
