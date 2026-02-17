@@ -22,6 +22,12 @@
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <key>ATSApplicationFontsPath</key>
+    <string>Fonts</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

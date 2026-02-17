@@ -13,14 +13,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Lifecycle
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        // Register for file open events before didFinishLaunching
-        // so we capture the URL on cold start
+        FontRegistrar.registerBundledFonts()
         launchSignpostID = LaunchTimer.beginPhase("AppLaunch")
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Build the main menu
         NSApp.mainMenu = MenuBuilder.buildMainMenu()
+
+        // Bring app to the foreground (required for programmatic AppKit apps)
+        NSApp.activate()
 
         didFinishLaunching = true
 
@@ -44,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for url in urls {
                 WindowManager.shared.openFile(url)
             }
+            NSApp.activate()
         } else {
             pendingURLs.append(contentsOf: urls)
         }
