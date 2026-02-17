@@ -1,0 +1,240 @@
+{
+  "feature_id": "themes",
+  "title": "Terminal-Style Theming System",
+  "type": "feature",
+  "status": "approved",
+  "priority": "critical",
+  "scope": "appkit",
+  "owner_role": "ui-designer",
+  "dependencies": [],
+  "summary": {
+    "goal": "Implement a theming system inspired by terminal color schemes with monospace typography, WCAG-compliant contrast, and automatic system appearance adaptation",
+    "description": "Themes inspired by terminal color schemes with monospace typography, adapting to system appearance.\n\n## Theme Characteristics (Confirmed)\n- Monospace fonts: SF Mono, Menlo, Fira Code, JetBrains Mono, IBM Plex Mono, etc.\n- Start with terminal-inspired themes: Solarized, Monokai, and similar\n- Each theme defines both light and dark variants\n- App follows macOS system appearance setting (light/dark) automatically\n\n## Theme Scope\n- App-wide setting (not per-file)\n- Configured in app Settings/Preferences (Cmd+,)\n- A few carefully curated themes — quality over quantity\n- Theme preference is the only state that persists across launches\n- Font size preference also persists (Cmd+Plus/Minus adjustments)\n- Settings UI should be lazily loaded — not initialized at launch (performance)\n\n## What Themes Control\n- Background color\n- Text color / foreground\n- Heading colors, weight, and size hierarchy\n- Code block background and text colors\n- Syntax highlighting palette (open source library)\n- Link colors (visited vs unvisited distinction)\n- Blockquote styling (left border + background tint)\n- Table borders and alternating row colors\n- Monospace font family\n- Line height and content margins\n- Selection highlight color\n- Scrollbar tint (if custom, otherwise system default)\n\n## Accessibility Requirements (Critical)\n\n### WCAG Contrast Ratios\n- **Body text**: Minimum 4.5:1 contrast ratio against background (WCAG AA)\n- **Large text** (headings h1-h3): Minimum 3:1 contrast ratio (WCAG AA)\n- **UI controls** (Open With button, scrollbar): Minimum 3:1 contrast ratio\n- **Links**: Must be distinguishable from body text without relying solely on color (underline or bold)\n- All shipped themes MUST pass WCAG AA; aim for AAA (7:1) where possible\n\n### Color Blindness\n- Links must be distinguishable by more than color alone (underline by default)\n- Code block backgrounds must have sufficient contrast from surrounding text\n- Syntax highlighting palettes tested against deuteranopia, protanopia, tritanopia\n- Consider providing a high-contrast theme variant for color vision deficiency\n\n### High Contrast Support\n- Respect macOS Accessibility > Display > Increase Contrast setting\n- When enabled: increase border weights, reduce transparency, boost contrast ratios\n- Test all themes with macOS Increase Contrast enabled\n\n## Design Challenge: Heading Hierarchy\n- FULLY RENDERED — headings displayed as real headings, not raw markdown\n- Clear h1-h6 visual hierarchy with size, color, weight, and spacing\n- h1: largest size, bold, distinct color, generous top margin\n- h2-h3: progressively smaller, bold, slight color variation\n- h4-h6: same or near-body size, differentiated by weight/style/color\n- Spacing between heading and following content creates clear visual grouping\n\n## System Integration\n- Respects NSAppearance / @Environment(\\.colorScheme)\n- Automatic switching when user toggles system dark mode\n- No manual light/dark toggle in-app — purely follows system\n- Theme engine precomputes both variants for instant switching\n- Respects Accessibility > Display > Reduce Transparency\n- Respects Accessibility > Display > Increase Contrast\n\n## Theme Preview in Settings\n- Each theme shown as mini-preview card with sample markdown\n- Preview shows current system appearance (light or dark)\n- Selection highlights with system accent color\n- Smooth cross-fade transition between themes",
+    "acceptance_criteria": [
+      {
+        "id": "terminal-themes",
+        "description": "Implement Solarized, Monokai and similar terminal-inspired themes"
+      },
+      {
+        "id": "monospace-fonts",
+        "description": "Support SF Mono, Menlo, Fira Code, JetBrains Mono, IBM Plex Mono"
+      },
+      {
+        "id": "system-appearance",
+        "description": "Automatically follows macOS light/dark mode setting"
+      },
+      {
+        "id": "heading-hierarchy",
+        "description": "Clear h1-h6 visual hierarchy with monospace fonts"
+      },
+      {
+        "id": "settings-persistence",
+        "description": "Theme preference persists across app launches"
+      }
+    ]
+  },
+  "understanding": {
+    "architect": {
+      "observations": [
+        "Theme engine precomputes both light/dark variants for instant switching",
+        "NSAppearance observation for automatic system appearance tracking",
+        "Settings UI lazily loaded — not at launch",
+        "UserDefaults for theme and font size persistence"
+      ],
+      "confidence": "high"
+    },
+    "designer": {
+      "observations": [
+        "Terminal-inspired: Solarized, Monokai, and similar",
+        "Monospace fonts throughout: SF Mono, Menlo, Fira Code, JetBrains Mono, IBM Plex Mono",
+        "Each theme controls: bg, fg, headings, code blocks, syntax, links, blockquotes, tables, margins",
+        "h1-h6 hierarchy: size + color + weight + spacing",
+        "Theme preview cards with sample markdown in settings",
+        "Smooth cross-fade transition (or instant with Reduce Motion)"
+      ],
+      "confidence": "high"
+    },
+    "tester": {
+      "observations": [
+        "All themes must pass WCAG AA (4.5:1 body, 3:1 large text, 3:1 UI)",
+        "Aim for WCAG AAA (7:1) where possible",
+        "Test syntax highlighting against deuteranopia, protanopia, tritanopia",
+        "Test with macOS Increase Contrast enabled",
+        "Links distinguishable by underline, not just color"
+      ],
+      "confidence": "high"
+    }
+  },
+  "context": {
+    "designer": {
+      "theme_properties": [
+        "background", "foreground", "heading_colors", "heading_weights", "heading_sizes",
+        "code_block_bg", "code_block_fg", "syntax_palette", "link_color", "visited_link_color",
+        "blockquote_border", "blockquote_bg", "table_border", "table_alt_row",
+        "font_family", "line_height", "content_margins", "selection_color", "scrollbar_tint"
+      ],
+      "wcag_requirements": {
+        "body_text": "4.5:1 minimum (AA), aim 7:1 (AAA)",
+        "large_text": "3:1 minimum (AA)",
+        "ui_controls": "3:1 minimum"
+      }
+    }
+  },
+  "plan_implementation": {
+    "scopes": ["appkit", "engine"],
+    "steps": [
+      {
+        "step_id": "th-i001",
+        "title": "Define Theme protocol and color/font property structure",
+        "scope": "engine",
+        "description": "Create a Theme protocol that defines all properties a theme must provide. This is the ThemeProvider protocol that the rendering pipeline's styling stage depends on. Include: background color, foreground color, heading colors/weights/sizes for h1-h6, code block background/foreground, syntax highlighting palette (mapping token types to colors), link color, visited link color, blockquote border/background, table border/alternating row colors, font family, base font size, line height multiplier, content margins, selection color. Each theme must provide both a light and dark variant (AppearanceVariant). Store as a struct conforming to Theme protocol.",
+        "dependencies": [],
+        "owner_role": "appkit:Architect",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Theme protocol defines all listed color, font, and spacing properties" },
+          { "id": "ac2", "description": "Each theme provides light and dark AppearanceVariant" },
+          { "id": "ac3", "description": "Syntax highlighting palette maps token types (keyword, string, comment, etc.) to NSColor" },
+          { "id": "ac4", "description": "Heading hierarchy defines 6 levels with distinct size, weight, and color" },
+          { "id": "ac5", "description": "Font properties support SF Mono, Menlo, Fira Code, JetBrains Mono, IBM Plex Mono" }
+        ],
+        "specification": {
+          "architecture": {
+            "location": "ViewMD/Engine/Theme/",
+            "key_types": ["Theme (protocol)", "AppearanceVariant (struct)", "SyntaxPalette (struct)", "HeadingStyle (struct)"],
+            "color_type": "NSColor for AppKit compatibility",
+            "font_type": "NSFont with monospace family"
+          }
+        }
+      },
+      {
+        "step_id": "th-i002",
+        "title": "Implement ThemeManager with system appearance observation",
+        "scope": "appkit",
+        "description": "Create ThemeManager as a singleton that manages the current theme, observes system appearance changes, and notifies subscribers. Observe NSApplication.effectiveAppearance changes via KVO or NotificationCenter (NSApplication.didChangeScreenParametersNotification, effectiveAppearance observation). When system toggles light/dark, ThemeManager switches the active variant and posts a notification. ThemeManager also holds the current font family and font size preferences. Publish changes via Combine or NotificationCenter.",
+        "dependencies": ["th-i001"],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "ThemeManager observes NSApplication.effectiveAppearance for system dark/light changes" },
+          { "id": "ac2", "description": "Switching system appearance instantly updates the active theme variant" },
+          { "id": "ac3", "description": "Subscribers receive notifications when theme or appearance changes" },
+          { "id": "ac4", "description": "Current theme and font size accessible via ThemeManager.shared" }
+        ],
+        "specification": {
+          "architecture": {
+            "pattern": "Singleton with observation (KVO on effectiveAppearance)",
+            "notification": "NotificationCenter with .themeDidChange custom notification",
+            "location": "ViewMD/UI/Theme/ThemeManager.swift",
+            "precompute": "Both light and dark variants loaded at init for instant switching"
+          }
+        }
+      },
+      {
+        "step_id": "th-i003",
+        "title": "Implement Solarized theme (light and dark variants)",
+        "scope": "appkit",
+        "description": "Create the first concrete theme: Solarized. Define both light (Solarized Light) and dark (Solarized Dark) variants with exact Solarized color palette values. Implement all theme properties: background, foreground, heading hierarchy (h1-h6 with distinct sizes from ~24pt down to ~13pt for monospace, weights, and Solarized accent colors), code block colors, syntax palette mapping, link colors, blockquote styling, table styling. Verify WCAG AA compliance for all color pairings in both variants.",
+        "dependencies": ["th-i001"],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Solarized Light variant with authentic Solarized color values" },
+          { "id": "ac2", "description": "Solarized Dark variant with authentic Solarized color values" },
+          { "id": "ac3", "description": "All body text color pairings pass WCAG AA (4.5:1)" },
+          { "id": "ac4", "description": "Heading hierarchy h1-h6 visually distinct with monospace sizing" },
+          { "id": "ac5", "description": "Syntax highlighting palette covers all token types" }
+        ],
+        "specification": {
+          "design": {
+            "palette_source": "Ethan Schoonover's Solarized specification",
+            "heading_sizes": { "h1": "~24pt", "h2": "~20pt", "h3": "~17pt", "h4": "~14pt", "h5": "~13pt", "h6": "~13pt italic" },
+            "default_font_size": "13pt",
+            "line_height": "1.5x"
+          }
+        }
+      },
+      {
+        "step_id": "th-i004",
+        "title": "Implement Monokai theme (light and dark variants)",
+        "scope": "appkit",
+        "description": "Create the second theme: Monokai. Known for its vibrant syntax colors on dark background. Create an authentic dark variant and a complementary light variant. Same structure as Solarized: all theme properties populated, heading hierarchy, syntax palette, WCAG AA compliance verified.",
+        "dependencies": ["th-i001"],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Monokai Dark variant with authentic Monokai color values" },
+          { "id": "ac2", "description": "Monokai Light variant with complementary colors" },
+          { "id": "ac3", "description": "All body text color pairings pass WCAG AA (4.5:1)" },
+          { "id": "ac4", "description": "Syntax highlighting palette with Monokai's vibrant colors" }
+        ],
+        "specification": {
+          "design": {
+            "palette_source": "Monokai color specification (Wimer Hazenberg)",
+            "dark_bg": "#272822",
+            "characteristic": "Vibrant syntax colors (green, orange, pink, blue, purple)"
+          }
+        }
+      },
+      {
+        "step_id": "th-i005",
+        "title": "Implement additional curated themes (GitHub, Dracula)",
+        "scope": "appkit",
+        "description": "Add 2 more themes to provide variety: (1) GitHub — clean, familiar, similar to GitHub's markdown rendering; (2) Dracula — popular dark theme with purple accents. Each with light and dark variants, full property set, WCAG compliance.",
+        "dependencies": ["th-i001"],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "GitHub theme with light and dark variants" },
+          { "id": "ac2", "description": "Dracula theme with light and dark variants" },
+          { "id": "ac3", "description": "All themes pass WCAG AA contrast requirements" },
+          { "id": "ac4", "description": "4 total themes available: Solarized, Monokai, GitHub, Dracula" }
+        ],
+        "specification": {
+          "design": {
+            "github": "Clean whites/grays, blue links, familiar to developers who read GitHub READMEs",
+            "dracula": "Dark purple-tinged background, vibrant pastel syntax colors"
+          }
+        }
+      },
+      {
+        "step_id": "th-i006",
+        "title": "Implement UserDefaults persistence for theme and font preferences",
+        "scope": "appkit",
+        "description": "Persist the selected theme ID and font family to UserDefaults so preferences survive app quit/relaunch. Also persist the user's font size adjustment (from Cmd+Plus/Minus). On app launch, ThemeManager reads preferences and applies them. If no preference exists (first launch), default to Solarized with SF Mono at 13pt. Do NOT load the Settings UI at this point — just read the persisted value.",
+        "dependencies": ["th-i002"],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Selected theme ID persists across app launches via UserDefaults" },
+          { "id": "ac2", "description": "Font family preference persists across app launches" },
+          { "id": "ac3", "description": "Font size adjustment persists across app launches" },
+          { "id": "ac4", "description": "First launch defaults to Solarized, SF Mono, 13pt" },
+          { "id": "ac5", "description": "Reading preferences at launch adds negligible time (< 1ms)" }
+        ],
+        "specification": {
+          "architecture": {
+            "keys": ["ViewMD.selectedThemeID", "ViewMD.fontFamily", "ViewMD.fontSizeAdjustment"],
+            "defaults": { "theme": "solarized", "font": "SF Mono", "size": 13 },
+            "note": "Preference reading is synchronous and fast — appropriate for launch path"
+          }
+        }
+      },
+      {
+        "step_id": "th-i007",
+        "title": "Connect ThemeManager to rendering pipeline's ThemeProvider",
+        "scope": "engine",
+        "description": "Bridge ThemeManager (UI layer) to the pipeline's ThemeProvider protocol (engine layer). When ThemeManager's active theme or appearance variant changes, the pipeline's styling stage and syntax highlighter must use the new colors/fonts. Implement the ThemeProvider conformance on ThemeManager so the pipeline stages can query current theme values without importing AppKit UI types. When theme changes, trigger a pipeline re-render for all open windows.",
+        "dependencies": ["th-i002", "th-i003"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "ThemeManager conforms to ThemeProvider protocol used by pipeline stages" },
+          { "id": "ac2", "description": "Changing theme updates all open windows with new colors/fonts" },
+          { "id": "ac3", "description": "System dark/light toggle re-renders all open windows with correct variant" },
+          { "id": "ac4", "description": "Re-render on theme change completes in under 200ms for typical files" }
+        ],
+        "specification": {
+          "architecture": {
+            "bridge": "ThemeManager conforms to ThemeProvider (engine protocol)",
+            "decoupling": "Pipeline stages depend on ThemeProvider protocol, not ThemeManager directly",
+            "re_render": "Theme change -> ThemeManager notifies -> each window's PipelineCoordinator cancels and re-renders"
+          }
+        }
+      }
+    ]
+  }
+}

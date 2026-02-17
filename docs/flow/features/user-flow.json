@@ -1,0 +1,144 @@
+{
+  "feature_id": "user-flow",
+  "title": "User Interaction Flow",
+  "type": "feature",
+  "status": "approved",
+  "priority": "high",
+  "scope": "appkit",
+  "owner_role": "ui-designer",
+  "dependencies": ["ui", "themes"],
+  "summary": {
+    "goal": "Define the complete frictionless user journey — from Finder to rendered markdown — with no onboarding, no setup wizard, and multiple entry points",
+    "description": "The entire user journey is intentionally brief and frictionless. No onboarding, no setup wizard, no first-run experience.\n\n## Primary Flow: Open from Finder\n1. User navigates to .md file in Finder\n2. Right-click -> Open With -> [App Name] (or double-click if set as default)\n3. App launches, window appears at calculated size centered on current display\n4. Rendered markdown displayed immediately (progressive for large files)\n5. User reads, scrolls as needed (standard macOS inertial scrolling)\n6. User closes via Cmd+W or traffic light close button\n7. If last window -> app quits entirely\n\n## Alternative Entry: Drag & Drop\n1. User drags .md file onto the app's Dock icon\n2. App opens file in new window\n3. Same behavior as Finder open\n- Also supports: drag .md file onto the app icon in Finder or Applications\n- Dock icon accepts multiple files simultaneously (opens each in separate window)\n\n## Alternative Entry: Open File Dialog\n1. With app running, Cmd+O opens standard macOS Open dialog\n2. File filter preset to markdown extensions\n3. Select file -> opens in new window\n\n## Alternative Entry: CLI\n1. `open -a \"AppName\" file.md` from Terminal\n2. Same behavior as Finder open\n\n## Secondary Flow: Open in Editor\n1. While viewing, user moves mouse to top-right area\n2. Open With button fades in (hover reveal)\n3. Click shows dropdown of system-associated apps\n4. User picks their editor (VS Code, Xcode, Cursor, etc.)\n5. File opens in chosen app\n6. Viewer window remains open (read-only, no live reload)\n\n## Settings Flow\n1. App menu -> Settings (Cmd+,)\n2. Theme picker -- gallery of curated terminal-style themes\n3. Each theme shows mini-preview with sample markdown content\n4. Selection applies immediately app-wide (smooth cross-fade transition)\n5. Theme and font size preferences persist across launches\n6. Settings window is a standard macOS Preferences sheet\n\n## Font Size Flow\n1. Cmd+Plus: Increase font size\n2. Cmd+Minus: Decrease font size\n3. Cmd+0: Reset to default\n4. Change applies immediately and persists for future windows\n5. Visual feedback: smooth text reflow, no layout jank\n\n## Edge Cases (Resolved)\n- **File modified externally**: Show subtle banner at top with Reload button. Do NOT auto-reload.\n- **File deleted while viewing**: Show inline message with path. Window remains open.\n- **Broken image references**: Show placeholder with alt text or filename.\n- **Relative links**: Resolve relative to file's directory.\n- **Opening same file twice**: Allow it -- two separate windows.\n- **File with no .md extension**: If opened explicitly, still render as markdown.\n\n## Quick Look Integration (Stretch Goal)\n- Provide Quick Look plugin for markdown files\n- Space bar on .md in Finder shows rendered preview\n- Uses same rendering engine as full app\n\n## Services Menu Integration\n- Register for macOS Services menu\n- Low priority but enhances native feel",
+    "acceptance_criteria": [
+      {
+        "id": "frictionless-viewing",
+        "description": "File opens instantly from Finder right-click without setup"
+      },
+      {
+        "id": "open-with-flow",
+        "description": "Open With button presents system-associated apps and launches selected app"
+      },
+      {
+        "id": "settings-flow",
+        "description": "Theme settings accessible via Cmd+, with immediate preview"
+      },
+      {
+        "id": "no-onboarding",
+        "description": "No first-run wizard or setup screens"
+      },
+      {
+        "id": "drag-and-drop",
+        "description": "Drag-and-drop .md files onto Dock icon or app window opens them correctly",
+        "type": "test"
+      },
+      {
+        "id": "external-file-changes",
+        "description": "External file changes show subtle reload banner; deleted files show inline message",
+        "type": "review"
+      }
+    ]
+  },
+  "understanding": {
+    "architect": {
+      "observations": [
+        "Multiple entry points: Finder, drag & drop, Cmd+O, CLI",
+        "No onboarding or first-run experience",
+        "File modified externally: banner with Reload button, no auto-reload",
+        "File deleted while viewing: inline message, window stays open",
+        "Opening same file twice allowed -- two separate windows",
+        "Quick Look plugin is stretch goal"
+      ],
+      "confidence": "high"
+    },
+    "designer": {
+      "observations": [
+        "Primary flow: Finder -> Open With -> rendered markdown -> close",
+        "Settings flow: Cmd+, -> theme gallery -> immediate apply",
+        "Font size flow: Cmd+Plus/Minus -> immediate reflow",
+        "Edge cases all resolved with specific UX patterns",
+        "No live reload when file changes -- explicit reload via banner"
+      ],
+      "confidence": "high"
+    }
+  },
+  "context": {
+    "designer": {
+      "entry_points": ["Finder Open With", "Drag & Drop to Dock", "Cmd+O dialog", "CLI open -a"],
+      "edge_cases": {
+        "file_modified": "Subtle banner with Reload button, no auto-reload",
+        "file_deleted": "Inline message with path, window remains open",
+        "broken_images": "Placeholder with alt text or filename",
+        "relative_links": "Resolve relative to file directory",
+        "duplicate_open": "Allow two separate windows",
+        "no_extension": "Render as markdown if opened explicitly"
+      }
+    }
+  },
+  "plan_implementation": {
+    "scopes": ["appkit", "platform"],
+    "steps": [
+      {
+        "step_id": "uf-i001",
+        "title": "Implement no-extension file handling",
+        "scope": "platform",
+        "description": "When a file is opened explicitly (via Open With, drag-and-drop, or Cmd+O) but does not have a .md extension, still attempt to render it as markdown. Check if the file content appears to be text (not binary) by reading the first 1KB and checking for null bytes. If it is text, parse and render as markdown. This handles cases where users have markdown files without the standard extension.",
+        "dependencies": [],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Files without .md extension render as markdown when opened explicitly" },
+          { "id": "ac2", "description": "Binary files (images, etc.) show appropriate error message" },
+          { "id": "ac3", "description": "Text detection uses first 1KB to check for null bytes" }
+        ],
+        "specification": {
+          "architecture": {
+            "detection": "Read first 1KB, check for null bytes (binary indicator)",
+            "fallback": "If binary detected, show error message instead of garbled render",
+            "extensions_handled": "Any file opened explicitly, not just registered UTI types"
+          }
+        }
+      },
+      {
+        "step_id": "uf-i002",
+        "title": "Implement same-file duplicate window handling",
+        "scope": "platform",
+        "description": "When the user opens a file that is already open in another window, allow it — create a second independent window for the same file. No warning, no 'already open' dialog. Each window has its own independent pipeline and scroll position. Both windows receive file-change notifications independently. This matches the behavior of Preview.app and other macOS document viewers.",
+        "dependencies": [],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Opening an already-open file creates a second window" },
+          { "id": "ac2", "description": "No warning or confirmation dialog shown" },
+          { "id": "ac3", "description": "Each window has independent scroll position and pipeline" },
+          { "id": "ac4", "description": "Both windows receive file-change notifications" }
+        ],
+        "specification": {
+          "architecture": {
+            "no_dedup": "WindowManager does not check for existing windows with same file URL",
+            "independence": "Each window owns its own PipelineCoordinator and file monitor"
+          }
+        }
+      },
+      {
+        "step_id": "uf-i003",
+        "title": "Ensure no first-run experience or onboarding",
+        "scope": "platform",
+        "description": "Verify that the app has absolutely zero first-run behavior. No welcome window, no tutorial, no 'Set as default' prompt, no update checks on launch, no analytics consent dialog. The first time the app is launched with a file, it simply renders the file. If launched without a file, it shows the Open File dialog. The only persistent state is theme and font preferences (which default to Solarized/SF Mono if not set).",
+        "dependencies": [],
+        "owner_role": "platform:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "No welcome window or tutorial on first launch" },
+          { "id": "ac2", "description": "No 'Set as default viewer' prompt" },
+          { "id": "ac3", "description": "No update check or analytics consent on launch" },
+          { "id": "ac4", "description": "First launch with file goes straight to rendered content" }
+        ],
+        "specification": {
+          "architecture": {
+            "no_first_run": "No UserDefaults 'hasLaunchedBefore' check",
+            "no_update_check": "No Sparkle or similar update framework",
+            "no_analytics": "No telemetry or crash reporting framework"
+          }
+        }
+      }
+    ]
+  }
+}

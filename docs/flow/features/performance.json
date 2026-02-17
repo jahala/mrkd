@@ -1,0 +1,217 @@
+{
+  "feature_id": "performance",
+  "title": "Large File Performance",
+  "type": "feature",
+  "status": "approved",
+  "priority": "critical",
+  "scope": "engine",
+  "owner_role": "coder",
+  "dependencies": ["pipeline", "assets"],
+  "summary": {
+    "goal": "Handle any markdown file size swiftly — from tiny READMEs to multi-MB exported documentation — with tiered loading, smooth scrolling, and bounded memory",
+    "description": "The app must handle any markdown file size swiftly - from tiny READMEs to multi-MB exported documentation.\n\n## Performance Requirements\n- Launch to readable content: < 200ms for typical files (< 100KB)\n- No perceptible delay for files under 100KB\n- Smooth scrolling at 60fps regardless of file size\n- No UI freezing during load or render\n- Memory usage sub-linear with file size\n\n## Tiered Loading Strategy\n\n### Tier 1: Small (< 50KB) — Instant\n- Full parse in single pass (~5ms for 50KB with cmark-gfm)\n- Complete AttributedString generated before display\n- Entire file laid out by TextKit 2\n- Memory: ~5MB total\n\n### Tier 2: Medium (50KB-500KB) — Progressive\n- Parse in 10KB chunks on background thread\n- First screenful rendered within 200ms budget\n- Remaining content appended as parsed\n- User sees content immediately, more appears as they scroll\n- Memory: ~15-30MB\n\n### Tier 3: Large (500KB-5MB) — Lazy Render\n- Stream-parse with cmark-gfm streaming API\n- TextKit 2 lazy layout: only lay out visible viewport + 2 screenfuls buffer\n- Scroll position estimation for scrollbar accuracy\n- Recycle layout fragments outside buffer zone\n- Memory: ~50-80MB (capped)\n\n### Tier 4: Very Large (5MB+) — Virtualized\n- Memory-mapped file I/O (mmap())\n- Parse-on-demand: only parse blocks near viewport\n- Estimated total height from byte-count heuristic\n- Aggressive layout recycling\n- Memory: ~80-120MB hard cap\n\n## Scroll Performance\n- Target: 60fps (16.67ms per frame budget)\n- Pre-compute layout 2 screenfuls ahead of scroll direction\n- Cancel pre-computation on scroll direction change\n- Use CADisplayLink for scroll-synchronized updates\n- Momentum scrolling must feel native (delegate to NSScrollView)\n\n## Background Thread Architecture\n- Parsing: dedicated serial queue (QOS: .userInitiated)\n- Styling (AST → AttributedString): can parallelize per-block\n- Layout: must happen on main thread (TextKit constraint)\n- File I/O: use DispatchIO for efficient buffered reads\n\n## Non-Functional\n- CPU usage drops to near-zero when idle (not scrolling)\n- No background timers or polling\n- App nap compatible when window is occluded\n- Energy efficiency: should not appear in Activity Monitor as energy-hungry",
+    "acceptance_criteria": [
+      {
+        "id": "small-file-performance",
+        "description": "Files under 100KB load with no perceptible delay"
+      },
+      {
+        "id": "scroll-performance",
+        "description": "Maintains 60fps scrolling regardless of file size"
+      },
+      {
+        "id": "progressive-loading",
+        "description": "Large files show first screenful within 200ms"
+      },
+      {
+        "id": "memory-efficiency",
+        "description": "Memory usage stays within specified tiers based on file size"
+      },
+      {
+        "id": "background-threading",
+        "description": "Parsing and styling occur on background threads"
+      }
+    ]
+  },
+  "understanding": {
+    "architect": {
+      "observations": [
+        "Four-tier loading strategy based on file size",
+        "cmark-gfm streaming API for large files",
+        "TextKit 2 lazy layout handles viewport-only rendering",
+        "mmap() for very large files (5MB+)",
+        "DispatchIO for efficient buffered reads",
+        "Layout must happen on main thread (TextKit constraint)"
+      ],
+      "concerns": [
+        "Scroll position estimation accuracy for very large files",
+        "CADisplayLink synchronization with TextKit 2 layout"
+      ],
+      "confidence": "high"
+    },
+    "performance": {
+      "observations": [
+        "16.67ms per frame budget for 60fps",
+        "Pre-compute 2 screenfuls ahead of scroll direction",
+        "CPU near-zero when idle — no background timers",
+        "App nap compatible when occluded",
+        "Styling can parallelize per-block on background threads"
+      ],
+      "confidence": "high"
+    }
+  },
+  "context": {
+    "architect": {
+      "tiers": {
+        "small": "< 50KB, instant full parse, ~5MB memory",
+        "medium": "50-500KB, progressive 10KB chunks, ~15-30MB",
+        "large": "500KB-5MB, stream-parse + lazy layout, ~50-80MB",
+        "very_large": "5MB+, mmap + parse-on-demand, ~80-120MB cap"
+      },
+      "threading": {
+        "parsing": "Dedicated serial queue, QOS .userInitiated",
+        "styling": "Parallelizable per-block",
+        "layout": "Main thread only (TextKit constraint)",
+        "file_io": "DispatchIO for buffered reads"
+      }
+    }
+  },
+  "plan_implementation": {
+    "scopes": ["engine"],
+    "steps": [
+      {
+        "step_id": "pf-i001",
+        "title": "Implement file size detection and tier routing",
+        "scope": "engine",
+        "description": "Add a tier determination step at the start of the pipeline. Check the file size (via FileManager.attributesOfItem) and route to the appropriate loading strategy. Tier 1 (< 50KB): full parse. Tier 2 (50KB-500KB): progressive chunked. Tier 3 (500KB-5MB): stream-parse with lazy layout. Tier 4 (5MB+): mmap with parse-on-demand. The PipelineCoordinator selects the strategy based on tier. This must be nearly instant (< 1ms) since it happens in the launch-critical path.",
+        "dependencies": [],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "File size checked in < 1ms via FileManager" },
+          { "id": "ac2", "description": "Correct tier selected for each file size range" },
+          { "id": "ac3", "description": "PipelineCoordinator uses tier to select appropriate strategy" },
+          { "id": "ac4", "description": "Tier boundaries: 50KB, 500KB, 5MB" }
+        ],
+        "specification": {
+          "architecture": {
+            "api": "FileManager.default.attributesOfItem(atPath:)[.size]",
+            "tiers": { "1": "< 50KB", "2": "50KB-500KB", "3": "500KB-5MB", "4": "> 5MB" },
+            "pattern": "Strategy pattern — each tier has a PipelineStrategy"
+          }
+        }
+      },
+      {
+        "step_id": "pf-i002",
+        "title": "Implement Tier 3 stream-parse with lazy layout",
+        "scope": "engine",
+        "description": "For files 500KB-5MB, implement stream-parsing with cmark-gfm's streaming API. Feed content in ~10KB chunks via cmark_parser_feed(). After each chunk, style the newly parsed AST nodes and append to NSTextContentStorage. TextKit 2's NSTextLayoutManager only lays out the visible viewport + 2 screenfuls buffer. Content outside this range is laid out lazily as the user scrolls. This should keep memory under 80MB by not holding the entire styled AttributedString in memory.",
+        "dependencies": ["pf-i001"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Files 500KB-5MB parsed incrementally in 10KB chunks" },
+          { "id": "ac2", "description": "First screenful visible within 200ms" },
+          { "id": "ac3", "description": "Memory stays under 80MB for files up to 5MB" },
+          { "id": "ac4", "description": "TextKit 2 lazy layout active — only viewport + buffer laid out" }
+        ],
+        "specification": {
+          "architecture": {
+            "streaming": "cmark_parser_feed() with 10KB chunks",
+            "layout_buffer": "2 screenfuls above and below viewport",
+            "memory_cap": "~80MB including text storage + layout + images"
+          }
+        }
+      },
+      {
+        "step_id": "pf-i003",
+        "title": "Implement Tier 4 mmap and parse-on-demand for very large files",
+        "scope": "engine",
+        "description": "For files over 5MB, use memory-mapped I/O and parse-on-demand. Memory-map the file via Data(contentsOf:options:.mappedIfSafe). Only parse blocks near the current viewport — use byte offset estimation to determine which portion of the file corresponds to the current scroll position. Estimate total document height from byte count (heuristic: ~25 lines per KB for typical markdown). As the user scrolls, parse and style new regions on-demand. Aggressively recycle styled content outside a 4-screenful window around the viewport. Hard memory cap: 120MB.",
+        "dependencies": ["pf-i001"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Files > 5MB use memory-mapped I/O" },
+          { "id": "ac2", "description": "Only blocks near viewport are parsed and styled" },
+          { "id": "ac3", "description": "Total height estimated from byte-count heuristic" },
+          { "id": "ac4", "description": "Memory stays under 120MB hard cap" },
+          { "id": "ac5", "description": "Scrolling triggers on-demand parsing of new regions" }
+        ],
+        "specification": {
+          "architecture": {
+            "mmap": "Data(contentsOf: url, options: .mappedIfSafe)",
+            "height_estimation": "~25 lines per KB heuristic, refined as actual content is parsed",
+            "parse_window": "4 screenfuls around viewport",
+            "recycling": "Clear styled content outside parse window",
+            "memory_cap": "120MB hard limit"
+          }
+        }
+      },
+      {
+        "step_id": "pf-i004",
+        "title": "Implement scroll-ahead pre-computation",
+        "scope": "engine",
+        "description": "Pre-compute layout ahead of the scroll direction to prevent blank areas appearing during fast scrolling. Detect scroll direction from NSScrollView bounds change notifications. Pre-compute 2 screenfuls of content in the scroll direction on a background queue. Cancel pre-computation when scroll direction reverses. The pre-computation must complete within the 16.67ms frame budget to maintain 60fps. Use a coalescing mechanism to batch rapid scroll events.",
+        "dependencies": ["pf-i002"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Scroll direction detected from bounds change notifications" },
+          { "id": "ac2", "description": "2 screenfuls pre-computed ahead of scroll direction" },
+          { "id": "ac3", "description": "Pre-computation cancelled on direction change" },
+          { "id": "ac4", "description": "60fps maintained during scrolling (no blank areas)" }
+        ],
+        "specification": {
+          "architecture": {
+            "detection": "NSScrollView.contentView.postsBoundsChangedNotifications",
+            "direction": "Compare current vs previous scroll offset",
+            "coalescing": "DispatchWorkItem with 16ms deadline for batch processing",
+            "pre_compute": "Style + append content for 2 screenfuls ahead"
+          }
+        }
+      },
+      {
+        "step_id": "pf-i005",
+        "title": "Implement idle CPU and energy efficiency",
+        "scope": "engine",
+        "description": "Ensure the app uses near-zero CPU when idle (not scrolling, no parsing in progress). Remove or disable any background timers, polling, or periodic updates. Ensure animated image GIFs pause when outside viewport (from assets feature). Make the app App Nap compatible: when the window is fully occluded, all background work should suspend. Verify with Activity Monitor and Instruments Energy Log that the app does not appear as energy-hungry.",
+        "dependencies": ["pf-i004"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "CPU drops to 0% when idle (not scrolling)" },
+          { "id": "ac2", "description": "No background timers or polling active when idle" },
+          { "id": "ac3", "description": "App Nap suspends background work when window occluded" },
+          { "id": "ac4", "description": "Does not appear as energy-hungry in Activity Monitor" }
+        ],
+        "specification": {
+          "architecture": {
+            "no_timers": "No Timer.scheduledTimer or DispatchSource.makeTimerSource when idle",
+            "app_nap": "NSProcessInfo automatic App Nap (no opt-out)",
+            "gif_pause": "Animated images pause when outside viewport",
+            "verification": "Instruments Energy Diagnostics template"
+          }
+        }
+      },
+      {
+        "step_id": "pf-i006",
+        "title": "Add memory monitoring and budget enforcement",
+        "scope": "engine",
+        "description": "Implement a MemoryMonitor that tracks total app memory usage and enforces the tier-based budgets. Monitor: text storage size, image cache size, layout fragments, and parsed AST data. When approaching the budget for the current tier, trigger eviction of non-essential data (far-from-viewport images, recycled layout fragments, parsed-but-unstyled AST regions). Log warnings via os_log when memory approaches limits. Never exceed the hard cap (120MB) — if necessary, degrade to lower-fidelity rendering (skip syntax highlighting, reduce image resolution).",
+        "dependencies": ["pf-i002", "pf-i003"],
+        "owner_role": "engine:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "MemoryMonitor tracks text storage + image cache + layout + AST memory" },
+          { "id": "ac2", "description": "Eviction triggered when approaching tier budget" },
+          { "id": "ac3", "description": "Hard cap of 120MB never exceeded" },
+          { "id": "ac4", "description": "Graceful degradation when memory-constrained" },
+          { "id": "ac5", "description": "os_log warnings when approaching limits" }
+        ],
+        "specification": {
+          "architecture": {
+            "tracking": "ProcessInfo.processInfo.physicalMemory + mach_task_basic_info for current usage",
+            "budgets": { "tier1": "5MB", "tier2": "30MB", "tier3": "80MB", "tier4": "120MB" },
+            "eviction_order": ["Far-from-viewport images", "Layout fragments outside buffer", "Syntax highlighting for non-visible code blocks"],
+            "degradation": ["Skip syntax highlighting", "Reduce image resolution", "Increase layout recycling aggressiveness"]
+          }
+        }
+      }
+    ]
+  }
+}

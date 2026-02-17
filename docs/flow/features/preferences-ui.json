@@ -1,0 +1,160 @@
+{
+  "feature_id": "preferences-ui",
+  "title": "Preferences/Settings Window",
+  "type": "feature",
+  "status": "approved",
+  "priority": "medium",
+  "scope": "appkit",
+  "owner_role": "ui-designer",
+  "dependencies": ["themes"],
+  "summary": {
+    "goal": "Design a minimal but well-crafted Settings window (Cmd+,) with a theme picker grid and font selector — lazily loaded, with immediate-apply behavior",
+    "description": "The Settings window (Cmd+,) is the only configuration surface in the app. It must be minimal but well-designed.\n\n## macOS Settings Pattern\n- Use standard macOS Settings window (NSWindow with .titled + .closable)\n- Single-pane layout (no sidebar tabs — not enough settings to warrant them)\n- Opens centered relative to the frontmost viewer window\n- Standard close behavior: Cmd+W or traffic light close button\n- Changes apply immediately (no Save/Cancel buttons — macOS convention)\n\n## Layout\n\n### Theme Section\n- Grid of theme preview cards (3 columns on standard window, responsive)\n- Each card shows:\n  - Theme name (e.g., \"Solarized\", \"Monokai\")\n  - Mini-preview: sample rendered markdown (~4-5 lines) in the theme's colors\n  - Preview renders in current system appearance (light or dark)\n- Selected theme has a highlight ring (system accent color)\n- Clicking a theme applies it immediately to all open windows\n- Smooth cross-fade transition (or instant if Reduce Motion enabled)\n\n### Font Section\n- Label: \"Font\"\n- Dropdown/popup button showing current font family\n- Available fonts: SF Mono, Menlo, Fira Code, JetBrains Mono, IBM Plex Mono\n- Font preview in the dropdown (each option rendered in its own font)\n- Font size not here — use Cmd+Plus/Minus in viewer (consistent with Preview.app pattern)\n\n### About Section (Optional, minimal)\n- App version number\n- Link to project page (if open source)\n\n## Lazy Loading\n- Settings window and its preview cards are NOT loaded at app launch\n- Only instantiated on first Cmd+, press\n- Theme preview cards render lazily (visible ones first)\n- After first open, keep in memory for instant subsequent access\n\n## Keyboard Navigation\n- Tab cycles through theme cards\n- Arrow keys navigate the theme grid\n- Enter/Space selects the focused theme\n- Escape closes Settings window\n\n## Persistence\n- Theme preference stored in UserDefaults (standard macOS persistence)\n- Font preference stored in UserDefaults\n- No other settings to persist",
+    "acceptance_criteria": [
+      {
+        "id": "theme-picker-grid",
+        "description": "Theme picker grid with live mini-previews showing sample markdown in each theme",
+        "type": "review"
+      },
+      {
+        "id": "lazy-loading",
+        "description": "Settings window lazily loaded on first Cmd+, press, not at app launch",
+        "type": "test"
+      },
+      {
+        "id": "immediate-apply",
+        "description": "Theme changes apply immediately to all open windows with smooth transition",
+        "type": "review"
+      }
+    ]
+  },
+  "understanding": {
+    "architect": {
+      "observations": [
+        "Standard NSWindow with .titled + .closable",
+        "Single-pane layout — not enough settings for sidebar tabs",
+        "Lazily loaded on first Cmd+, press",
+        "UserDefaults for theme and font persistence",
+        "Keep in memory after first open for instant subsequent access"
+      ],
+      "confidence": "high"
+    },
+    "designer": {
+      "observations": [
+        "Theme section: 3-column grid of preview cards",
+        "Each card: theme name + mini-preview (~4-5 lines sample markdown)",
+        "Selected theme: highlight ring with system accent color",
+        "Font section: dropdown with each option rendered in its own font",
+        "No Save/Cancel — changes apply immediately (macOS convention)",
+        "Smooth cross-fade (or instant with Reduce Motion)"
+      ],
+      "confidence": "high"
+    }
+  },
+  "context": {
+    "designer": {
+      "layout": "Single-pane, no sidebar tabs",
+      "theme_grid": "3 columns, responsive",
+      "card_contents": "Theme name + mini-preview (4-5 lines sample markdown)",
+      "font_dropdown": "Each option rendered in its own font",
+      "persistence": "UserDefaults for theme and font",
+      "lazy_loading": "Not initialized at launch, only on first Cmd+, press"
+    }
+  },
+  "plan_implementation": {
+    "scopes": ["appkit"],
+    "steps": [
+      {
+        "step_id": "pr-i001",
+        "title": "Create lazily-initialized Settings window controller",
+        "scope": "appkit",
+        "description": "Create a SettingsWindowController that is NOT instantiated at app launch. It is created on first Cmd+, press and then kept in memory for subsequent opens. The window is a standard NSWindow with .titled and .closable styles, centered relative to the frontmost viewer window. Cmd+W or Escape closes it. The window controller holds the theme grid and font picker as its content. Wire Cmd+, to trigger the lazy creation and show.",
+        "dependencies": [],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Settings window created on first Cmd+, press, not at launch" },
+          { "id": "ac2", "description": "Window centers relative to frontmost viewer window" },
+          { "id": "ac3", "description": "Cmd+W and Escape close the settings window" },
+          { "id": "ac4", "description": "After first creation, subsequent Cmd+, reopens instantly" }
+        ],
+        "specification": {
+          "architecture": {
+            "pattern": "Lazy singleton — created on demand, retained after first use",
+            "location": "ViewMD/UI/Settings/SettingsWindowController.swift",
+            "window_style": ".titled, .closable",
+            "trigger": "Menu item Settings (Cmd+,) calls SettingsWindowController.shared.showWindow()"
+          }
+        }
+      },
+      {
+        "step_id": "pr-i002",
+        "title": "Implement theme picker grid with mini-preview cards",
+        "scope": "appkit",
+        "description": "Create a grid layout (NSCollectionView or custom NSStackView grid) showing all available themes as preview cards. Each card: (1) theme name label at top, (2) mini-preview showing ~4-5 lines of sample markdown rendered in the theme's colors and font, (3) selection ring using system accent color for the currently selected theme. The preview renders in the current system appearance (light or dark). Clicking a card calls ThemeManager.setTheme(id:) which applies immediately to all windows. Use smooth cross-fade animation for theme transitions (or instant if Reduce Motion enabled).",
+        "dependencies": ["pr-i001"],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Grid shows all themes as preview cards (3 columns)" },
+          { "id": "ac2", "description": "Each card shows theme name and sample markdown in theme colors" },
+          { "id": "ac3", "description": "Selected theme has system accent color ring" },
+          { "id": "ac4", "description": "Clicking card applies theme immediately to all open windows" },
+          { "id": "ac5", "description": "Preview shows current system appearance (light/dark)" }
+        ],
+        "specification": {
+          "design": {
+            "card_size": "~180x140pt",
+            "grid_columns": 3,
+            "sample_markdown": "# Heading\\n\\nParagraph with **bold** and `code`.\\n\\n```swift\\nlet x = 42\\n```",
+            "selection_ring": "2pt border in NSColor.controlAccentColor",
+            "transition": "Cross-fade via NSAnimationContext (respect Reduce Motion)"
+          }
+        }
+      },
+      {
+        "step_id": "pr-i003",
+        "title": "Implement font family selector dropdown",
+        "scope": "appkit",
+        "description": "Create a font family selector below the theme grid. Use an NSPopUpButton with the supported monospace fonts: SF Mono, Menlo, Fira Code, JetBrains Mono, IBM Plex Mono. Each menu item renders its label in its own font for preview. Selecting a font updates ThemeManager.fontFamily, persists to UserDefaults, and triggers a re-render of all open windows. Only show fonts that are actually installed on the system.",
+        "dependencies": ["pr-i001"],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Dropdown shows available monospace fonts" },
+          { "id": "ac2", "description": "Each option rendered in its own font for preview" },
+          { "id": "ac3", "description": "Only installed fonts shown" },
+          { "id": "ac4", "description": "Selection updates ThemeManager and re-renders all windows" },
+          { "id": "ac5", "description": "Font preference persists via UserDefaults" }
+        ],
+        "specification": {
+          "architecture": {
+            "control": "NSPopUpButton with attributed title per item",
+            "fonts": ["SF Mono", "Menlo", "Fira Code", "JetBrains Mono", "IBM Plex Mono"],
+            "detection": "NSFontManager.shared.availableFontFamilies to check installation",
+            "persistence": "ThemeManager.setFontFamily() -> UserDefaults"
+          }
+        }
+      },
+      {
+        "step_id": "pr-i004",
+        "title": "Implement keyboard navigation in settings",
+        "scope": "appkit",
+        "description": "Enable full keyboard navigation in the Settings window. Tab cycles focus between theme grid and font dropdown. Within the theme grid, arrow keys navigate between cards. Enter or Space selects the focused card. Escape closes the window. Focus ring visible on the currently focused element (standard macOS blue ring). All of this should work with Full Keyboard Access enabled in System Settings.",
+        "dependencies": ["pr-i002", "pr-i003"],
+        "owner_role": "appkit:Coder",
+        "acceptance_criteria": [
+          { "id": "ac1", "description": "Tab cycles between theme grid and font dropdown" },
+          { "id": "ac2", "description": "Arrow keys navigate theme grid" },
+          { "id": "ac3", "description": "Enter/Space selects focused theme card" },
+          { "id": "ac4", "description": "Escape closes settings window" },
+          { "id": "ac5", "description": "Focus ring visible on focused elements" }
+        ],
+        "specification": {
+          "architecture": {
+            "focus_chain": "Theme grid -> Font dropdown",
+            "grid_navigation": "Arrow keys via keyDown override or NSCollectionView keyboard handling",
+            "escape": "cancelOperation: or keyDown Escape -> close window"
+          }
+        }
+      }
+    ]
+  }
+}
