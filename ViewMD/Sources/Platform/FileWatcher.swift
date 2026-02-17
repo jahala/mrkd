@@ -10,6 +10,7 @@ final class FileWatcher {
     private let url: URL
     private var source: DispatchSourceFileSystemObject?
     private let queue = DispatchQueue(label: "com.mrkd.filewatcher", qos: .utility)
+    private var retryWorkItem: DispatchWorkItem?
 
     init(url: URL) {
         self.url = url
@@ -33,6 +34,7 @@ final class FileWatcher {
                 DispatchQueue.main.async {
                     self.delegate?.fileWatcher(self, didDetectDeletionOf: self.url)
                 }
+                self.restartAfterDeletion()
             } else if flags.contains(.write) {
                 DispatchQueue.main.async {
                     self.delegate?.fileWatcher(self, didDetectChangeFor: self.url)
@@ -49,8 +51,40 @@ final class FileWatcher {
     }
 
     func stop() {
+        retryWorkItem?.cancel()
+        retryWorkItem = nil
         source?.cancel()
         source = nil
+    }
+
+    private func restartAfterDeletion() {
+        source?.cancel()
+        source = nil
+
+        attemptRestart(retryCount: 0)
+    }
+
+    private func attemptRestart(retryCount: Int) {
+        let maxRetries = 5
+        guard retryCount < maxRetries else { return }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+
+            let fd = open(self.url.path, O_EVTONLY)
+            if fd >= 0 {
+                close(fd)
+                self.start()
+                DispatchQueue.main.async {
+                    self.delegate?.fileWatcher(self, didDetectChangeFor: self.url)
+                }
+            } else {
+                self.attemptRestart(retryCount: retryCount + 1)
+            }
+        }
+
+        retryWorkItem = workItem
+        queue.asyncAfter(deadline: .now() + 1.0, execute: workItem)
     }
 
     deinit {

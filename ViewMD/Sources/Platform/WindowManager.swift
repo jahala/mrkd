@@ -44,10 +44,14 @@ final class WindowManager: NSObject {
             defer: false
         )
 
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.styleMask.insert(.fullSizeContentView)
+
         window.title = url.lastPathComponent
-        window.subtitle = url.deletingLastPathComponent().path(percentEncoded: false)
         window.representedURL = url
         window.isReleasedWhenClosed = false
+        window.isRestorable = false
         window.tabbingMode = .disallowed
 
         let theme = ThemeManager.shared.currentTheme

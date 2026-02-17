@@ -9,6 +9,13 @@ enum FileReader {
 
     // Read file, choosing strategy based on size tier
     static func read(url: URL) -> ReadResult {
+        // Ensure sandbox access for security-scoped URLs (from NSOpenPanel, bookmarks).
+        // No-op for URLs that aren't security-scoped (system file-open events).
+        let didStartAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccess { url.stopAccessingSecurityScopedResource() }
+        }
+
         // Check for binary files first
         if isBinaryFile(at: url) {
             return .error("This file appears to be binary and cannot be displayed as markdown.")

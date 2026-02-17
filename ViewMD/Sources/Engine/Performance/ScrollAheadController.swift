@@ -55,27 +55,43 @@ final class ScrollAheadController {
         let currentY = scrollView.contentView.bounds.origin.y
         let prefetchDistance = viewportHeight * 2
 
+        // Find the text position at the current viewport edge (in scroll direction)
+        let startY: CGFloat
         let targetY: CGFloat
         switch direction {
         case .down:
-            targetY = currentY + viewportHeight + prefetchDistance
+            startY = currentY + viewportHeight
+            targetY = startY + prefetchDistance
         case .up:
+            startY = currentY
             targetY = max(0, currentY - prefetchDistance)
         }
 
-        // Find the text position nearest to the target Y coordinate and
-        // enumerate fragments up to that point with ensuresLayout. This
-        // causes TextKit 2 to compute layout for those fragments.
+        // Find the layout fragment at the viewport edge to start from
+        let startPoint = CGPoint(x: 0, y: startY)
+        guard let startFragment = textLayoutManager.textLayoutFragment(for: startPoint) else { return }
+
         let targetPoint = CGPoint(x: 0, y: targetY)
         guard let targetLocation = textLayoutManager.textLayoutFragment(for: targetPoint)?
             .rangeInElement.location else { return }
 
-        textLayoutManager.enumerateTextLayoutFragments(
-            from: textLayoutManager.documentRange.location,
-            options: [.ensuresLayout]
-        ) { fragment in
-            let offset = fragment.rangeInElement.location
-            return offset.compare(targetLocation) == .orderedAscending
+        // Enumerate from viewport edge toward the target, not from document start
+        let startLocation = startFragment.rangeInElement.location
+
+        if direction == .down {
+            textLayoutManager.enumerateTextLayoutFragments(
+                from: startLocation,
+                options: [.ensuresLayout]
+            ) { fragment in
+                fragment.rangeInElement.location.compare(targetLocation) == .orderedAscending
+            }
+        } else {
+            textLayoutManager.enumerateTextLayoutFragments(
+                from: startLocation,
+                options: [.ensuresLayout, .reverse]
+            ) { fragment in
+                fragment.rangeInElement.location.compare(targetLocation) == .orderedDescending
+            }
         }
     }
 }
