@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 @MainActor
 final class SettingsWindowController: NSWindowController {
@@ -62,6 +63,9 @@ final class SettingsWindowController: NSWindowController {
 
         themePickerGrid = ThemePickerGridView(selectedTheme: ThemeManager.shared.selectedThemeName)
         themePickerGrid.translatesAutoresizingMaskIntoConstraints = false
+        themePickerGrid.onImportTheme = { [weak self] in
+            self?.importTheme()
+        }
 
         let bodyFontRow = createFontRow(
             label: "Body Font",
@@ -169,6 +173,49 @@ final class SettingsWindowController: NSWindowController {
     @objc private func codeFontChanged(_ sender: NSPopUpButton) {
         guard let selectedTitle = sender.selectedItem?.title else { return }
         ThemeManager.shared.codeFontFamily = selectedTitle
+    }
+
+    private func importTheme() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "itermcolors"),
+            UTType(filenameExtension: "json"),
+        ].compactMap { $0 }
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Choose an iTerm2 or VS Code theme file"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let _ = try ThemeManager.shared.importTheme(from: url)
+            // Theme is auto-selected by importTheme, which triggers notification.
+            // Recreate the grid to show the new theme card.
+            rebuildThemeGrid()
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
+        }
+    }
+
+    private func rebuildThemeGrid() {
+        let stackView = themePickerGrid.superview as? NSStackView
+        let gridIndex = stackView?.arrangedSubviews.firstIndex(of: themePickerGrid)
+
+        themePickerGrid.removeFromSuperview()
+
+        let newGrid = ThemePickerGridView(selectedTheme: ThemeManager.shared.selectedThemeName)
+        newGrid.translatesAutoresizingMaskIntoConstraints = false
+        newGrid.onImportTheme = { [weak self] in
+            self?.importTheme()
+        }
+        themePickerGrid = newGrid
+
+        if let stackView = stackView, let index = gridIndex {
+            stackView.insertArrangedSubview(newGrid, at: index)
+        }
+
+        window?.makeFirstResponder(themePickerGrid)
     }
 
     // MARK: - Theme Observation

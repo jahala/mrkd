@@ -47,6 +47,8 @@
 		BB00000000000000000000BD /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* Fonts */; };
 		BB00000000000000000000BE /* QLPlugin.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000A4 /* QLPlugin.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BF066B60A7634935791539D0 /* ImageAttachmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0172B3489C027F6F6FE19A8 /* ImageAttachmentProvider.swift */; };
+		CC11223344556677AABB0001 /* ThemeImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC11223344556677AABB0010 /* ThemeImporter.swift */; };
+		CC11223344556677AABB0002 /* CustomTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC11223344556677AABB0020 /* CustomTheme.swift */; };
 		C038788BDE819D5573A8E610 /* TextInteractionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107D699E48B66B070525BE2D /* TextInteractionHandler.swift */; };
 		C2D3E4F5A6B7C8D9E0F1A2B3 /* FontRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A2 /* FontRegistrar.swift */; };
 		C9D7B00F59AF01A39A04A954 /* cmark-gfm-extensions in Frameworks */ = {isa = PBXBuildFile; productRef = FA14B97471628A347AC950B2 /* cmark-gfm-extensions */; };
@@ -115,6 +117,8 @@
 		D4E5F6A7B8C9D0E1F2A3B4C5 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = AppIcon.icon; sourceTree = "<group>"; };
 		D75DB822B1B2CCBF360C2A9C /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		DF7B1250745978242028AC9E /* GitHubTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubTheme.swift; sourceTree = "<group>"; };
+		CC11223344556677AABB0010 /* ThemeImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeImporter.swift; sourceTree = "<group>"; };
+		CC11223344556677AABB0020 /* CustomTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTheme.swift; sourceTree = "<group>"; };
 		E0172B3489C027F6F6FE19A8 /* ImageAttachmentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAttachmentProvider.swift; sourceTree = "<group>"; };
 		E5277AC4E3BF27276C943D7C /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		E8CA6E5F5D620288AAD4FEAE /* MonokaiTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonokaiTheme.swift; sourceTree = "<group>"; };
@@ -252,10 +256,12 @@
 		D76B511612646C9DA8734F49 /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				CC11223344556677AABB0020 /* CustomTheme.swift */,
 				80BA223DB28EB9E0844D2497 /* HighContrastTheme.swift */,
 				E0172B3489C027F6F6FE19A8 /* ImageAttachmentProvider.swift */,
 				15D2C41833550F78C1030518 /* MarkdownRenderer.swift */,
 				0BEF4EC19CCD6BC11DF88F49 /* Theme.swift */,
+				CC11223344556677AABB0010 /* ThemeImporter.swift */,
 				D75DB822B1B2CCBF360C2A9C /* ThemeManager.swift */,
 				A76F89169B30D90A9B42DA84 /* Performance */,
 				D7AB983A0ECC3D428EEBF2F6 /* Pipeline */,
@@ -399,6 +405,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1E6730488D8937927510A98E /* AppDelegate.swift in Sources */,
+				CC11223344556677AABB0002 /* CustomTheme.swift in Sources */,
 				EB39FEE72A4C5D84CFA7AAC3 /* DraculaTheme.swift in Sources */,
 				7A77BE8CEC4DB0A6F8E1ADCD /* FileReader.swift in Sources */,
 				63B529A860052631B8139C4A /* FileTierRouter.swift in Sources */,
@@ -422,6 +429,7 @@
 				1825E0179E36ADC8338E119C /* SolarizedTheme.swift in Sources */,
 				C038788BDE819D5573A8E610 /* TextInteractionHandler.swift in Sources */,
 				4158D8C5FBC0E8833800ABD9 /* Theme.swift in Sources */,
+				CC11223344556677AABB0001 /* ThemeImporter.swift in Sources */,
 				803F91C74F0F42577061D196 /* ThemeManager.swift in Sources */,
 				ED583ED1A5260607E9CE49D7 /* ThemePickerGridView.swift in Sources */,
 				7326F72DE0B148216AA740FF /* WindowManager.swift in Sources */,
