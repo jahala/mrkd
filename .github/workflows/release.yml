@@ -49,6 +49,23 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
             build
 
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd build/Build/Products/Release
+          ditto -c -k --keepParent mrkd.app mrkd-unsigned.zip
+
+          xcrun notarytool submit mrkd-unsigned.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          xcrun stapler staple mrkd.app
+
       - name: Package app
         run: |
           cd build/Build/Products/Release
