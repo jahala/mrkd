@@ -2,6 +2,8 @@
 
 A native macOS markdown viewer built with AppKit and TextKit 2. Fast, lightweight, and designed to feel like a first-party Mac app.
 
+No Electron. No WebView. Markdown is parsed with cmark-gfm and rendered directly to NSAttributedString via TextKit 2 -- native text selection, native accessibility, ~1MB binary.
+
 ## Features
 
 - **Native rendering** -- GFM markdown via cmark-gfm, styled with NSAttributedString
@@ -39,4 +41,6 @@ Open any `.md`, `.markdown`, or `.mdown` file with mrkd. You can also drag files
 
 ## License
 
-All bundled fonts are distributed under their respective open-source licenses (SIL OFL 1.1 or Apache 2.0).
+MIT. See [LICENSE](LICENSE).
+
+Bundled fonts are distributed under their respective open-source licenses (SIL OFL 1.1 or Apache 2.0).
