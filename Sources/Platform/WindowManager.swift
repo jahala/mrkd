@@ -28,6 +28,14 @@ final class WindowManager: NSObject {
         let window = createWindow(for: url)
         let viewController = MarkdownViewController(fileURL: url)
         window.contentViewController = viewController
+
+        // Size and center AFTER setting contentViewController —
+        // NSWindow resizes itself to the content view's frame when
+        // contentViewController is assigned, discarding the initial contentRect.
+        let theme = ThemeManager.shared.currentTheme
+        window.setContentSize(WindowSizer.defaultSize(for: theme))
+        centerWindowOnCursorDisplay(window)
+
         window.makeKeyAndOrderFront(nil)
         windows.append(window)
     }
@@ -35,10 +43,8 @@ final class WindowManager: NSObject {
     // MARK: - Window Creation
 
     private func createWindow(for url: URL) -> NSWindow {
-        let contentRect = defaultWindowRect()
-
         let window = NSWindow(
-            contentRect: contentRect,
+            contentRect: .zero,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -56,16 +62,9 @@ final class WindowManager: NSObject {
 
         let theme = ThemeManager.shared.currentTheme
         window.minSize = WindowSizer.minimumSize(for: theme)
-        centerWindowOnCursorDisplay(window)
         window.delegate = self
 
         return window
-    }
-
-    private func defaultWindowRect() -> NSRect {
-        let theme = ThemeManager.shared.currentTheme
-        let size = WindowSizer.defaultSize(for: theme)
-        return NSRect(x: 0, y: 0, width: size.width, height: size.height)
     }
 
     private func centerWindowOnCursorDisplay(_ window: NSWindow) {
