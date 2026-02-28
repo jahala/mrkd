@@ -39,10 +39,12 @@ jobs:
 
           security list-keychain -d user -s "$KEYCHAIN_PATH"
 
-      - name: Build Release
+      - name: Build Release (Universal)
         run: |
           xcodebuild -scheme mrkd -configuration Release \
             -derivedDataPath build \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
