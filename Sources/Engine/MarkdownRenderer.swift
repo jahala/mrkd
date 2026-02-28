@@ -451,7 +451,10 @@ enum MarkdownRenderer {
         theme: Theme
     ) {
         guard let literal = cmark_node_get_literal(node) else { return }
-        let code = String(cString: literal)
+        // cmark includes a trailing newline in code block literals;
+        // strip it so the NSTextBlock background doesn't show a blank row.
+        var code = String(cString: literal)
+        while code.hasSuffix("\n") { code.removeLast() }
 
         var language: String? = nil
         if let fence = cmark_node_get_fence_info(node) {

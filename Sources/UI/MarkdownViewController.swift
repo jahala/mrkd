@@ -89,8 +89,8 @@ final class MarkdownViewController: NSViewController {
         openWithButton.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            openWithButton.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 5),
-            openWithButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8)
+            openWithButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -12),
+            openWithButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -12)
         ])
 
         openWithButton.alphaValue = 1
