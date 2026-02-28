@@ -1,6 +1,19 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.00000,0.03235,0.96783,1.00000"
+    "linear-gradient" : [
+      "display-p3:0.00000,0.14615,0.79130,1.00000",
+      "display-p3:0.00000,0.02020,0.07314,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
   },
   "groups" : [
     {
@@ -8,21 +21,21 @@
       "layers" : [
         {
           "fill" : {
-            "automatic-gradient" : "display-p3:0.96783,0.88654,0.00187,1.00000"
+            "solid" : "display-p3:0.96783,0.90206,0.00000,1.00000"
           },
-          "image-name" : "lightning.png",
-          "name" : "lightning",
+          "image-name" : "ChatGPT Image Feb 28, 2026, 10_27_10 PM.png",
+          "name" : "ChatGPT Image Feb 28, 2026, 10_27_10 PM",
           "position" : {
-            "scale" : 0.99,
+            "scale" : 1.2,
             "translation-in-points" : [
-              -0.7846901633522805,
-              3.4090909090909065
+              22.857142857143117,
+              23.57142857142884
             ]
           }
         }
       ],
       "position" : {
-        "scale" : 2.2,
+        "scale" : 1.4,
         "translation-in-points" : [
           0,
           0
@@ -40,36 +53,10 @@
     {
       "blur-material" : 0.5,
       "layers" : [
-        {
-          "fill" : {
-            "linear-gradient" : [
-              "display-p3:0.89529,0.79741,-0.14996,1.00000",
-              "display-p3:0.96783,0.87720,0.00000,1.00000"
-            ],
-            "orientation" : {
-              "start" : {
-                "x" : 0.5,
-                "y" : 1
-              },
-              "stop" : {
-                "x" : 0.6262003336197292,
-                "y" : 0.23220007829358663
-              }
-            }
-          },
-          "image-name" : "code.png",
-          "name" : "code",
-          "position" : {
-            "scale" : 1.55,
-            "translation-in-points" : [
-              0,
-              0
-            ]
-          }
-        }
+
       ],
       "position" : {
-        "scale" : 1.5,
+        "scale" : 1.8,
         "translation-in-points" : [
           0,
           0
