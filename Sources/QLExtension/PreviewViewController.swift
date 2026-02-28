@@ -70,13 +70,14 @@ class PreviewViewController: NSViewController, QLPreviewingController {
     // MARK: - Theme
 
     private func resolveTheme() -> Theme {
-        // Read user preferences from the main app's UserDefaults domain
-        let defaults = UserDefaults(suiteName: "com.mrkd.app")
-        let themeName = defaults?.string(forKey: "selectedTheme") ?? "Default"
-        let storedSize = defaults?.double(forKey: "fontSize") ?? 0
+        // Use CFPreferencesCopyAppValue — the official cross-process API.
+        // UserDefaults(suiteName:) doesn't work reliably from a sandboxed
+        // extension reading the main app's preferences domain.
+        let themeName = readPref("selectedTheme") as? String ?? "Default"
+        let storedSize = readPref("fontSize") as? Double ?? 0
         let fontSize: CGFloat = storedSize > 0 ? CGFloat(storedSize) : 13.0
-        let fontFamily = defaults?.string(forKey: "fontFamily") ?? "SF Mono"
-        let codeFontFamily = defaults?.string(forKey: "codeFontFamily") ?? "JetBrains Mono"
+        let fontFamily = readPref("fontFamily") as? String ?? "SF Mono"
+        let codeFontFamily = readPref("codeFontFamily") as? String ?? "JetBrains Mono"
 
         let isDark = NSAppearance.current.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let theme = makeTheme(named: themeName, isDark: isDark, fontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
@@ -85,6 +86,10 @@ class PreviewViewController: NSViewController, QLPreviewingController {
             return HighContrastTheme(wrapping: theme)
         }
         return theme
+    }
+
+    private func readPref(_ key: String) -> Any? {
+        CFPreferencesCopyAppValue(key as CFString, "com.mrkd.app" as CFString)
     }
 
     private func makeTheme(named name: String, isDark: Bool, fontSize: CGFloat, fontFamily: String, codeFontFamily: String) -> Theme {
@@ -98,8 +103,30 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         case "Dracula":
             return DraculaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
         default:
+            // Check for a custom imported theme in App Support
+            if let palette = loadCustomPalette(named: name) {
+                return CustomTheme(palette: palette, baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
+            }
             return DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
         }
+    }
+
+    private func loadCustomPalette(named name: String) -> ThemePalette? {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let themesDir = appSupport.appendingPathComponent("com.mrkd.app/Themes", isDirectory: true)
+
+        guard let files = try? FileManager.default.contentsOfDirectory(at: themesDir, includingPropertiesForKeys: nil) else {
+            return nil
+        }
+
+        for file in files {
+            let ext = file.pathExtension.lowercased()
+            guard ext == "itermcolors" || ext == "json" else { continue }
+            if let palette = try? ThemeImporter.parse(from: file), palette.name == name {
+                return palette
+            }
+        }
+        return nil
     }
 
     // MARK: - Sizing

@@ -41,6 +41,8 @@
 		BB00000000000000000000B7 /* GitHubTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7B1250745978242028AC9E /* GitHubTheme.swift */; };
 		BB00000000000000000000B8 /* DraculaTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873D8978121420ACD45EC63B /* DraculaTheme.swift */; };
 		BB00000000000000000000B9 /* FontRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A2 /* FontRegistrar.swift */; };
+		BB00000000000000000000C1 /* ThemeImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC11223344556677AABB0010 /* ThemeImporter.swift */; };
+		BB00000000000000000000C2 /* CustomTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC11223344556677AABB0020 /* CustomTheme.swift */; };
 		BB00000000000000000000BA /* cmark-gfm in Frameworks */ = {isa = PBXBuildFile; productRef = AC00000000000000000000A1 /* cmark-gfm */; };
 		BB00000000000000000000BB /* cmark-gfm-extensions in Frameworks */ = {isa = PBXBuildFile; productRef = AC00000000000000000000A2 /* cmark-gfm-extensions */; };
 		BB00000000000000000000BC /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = AC00000000000000000000A3 /* Highlightr */; };
@@ -449,6 +451,8 @@
 				BB00000000000000000000B7 /* GitHubTheme.swift in Sources */,
 				BB00000000000000000000B8 /* DraculaTheme.swift in Sources */,
 				BB00000000000000000000B9 /* FontRegistrar.swift in Sources */,
+				BB00000000000000000000C1 /* ThemeImporter.swift in Sources */,
+				BB00000000000000000000C2 /* CustomTheme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
