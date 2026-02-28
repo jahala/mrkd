@@ -19,7 +19,7 @@ final class OpenWithButton: NSView {
         visualEffectView.state = .active
         visualEffectView.blendingMode = .behindWindow
         visualEffectView.wantsLayer = true
-        visualEffectView.layer?.cornerRadius = 3
+        visualEffectView.layer?.cornerRadius = 4
 
         // Create button with SF Symbol and title
         button = NSButton()
@@ -28,7 +28,7 @@ final class OpenWithButton: NSView {
         button.title = "Open"
         button.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: "Open")
         button.imagePosition = .imageTrailing
-        button.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        button.font = NSFont.systemFont(ofSize: 12, weight: .medium)
         button.contentTintColor = .secondaryLabelColor
 
         super.init(frame: .zero)
@@ -72,7 +72,7 @@ final class OpenWithButton: NSView {
             button.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor),
 
             // Container height
-            heightAnchor.constraint(equalToConstant: 24)
+            heightAnchor.constraint(equalToConstant: 26)
         ])
 
         // Accessibility
