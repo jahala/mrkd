@@ -22,5 +22,8 @@ Package.resolved
 !default.perspectivev3
 xcuserdata/
 
+# Local signing config
+Local.xcconfig
+
 # Context files
 .context/
