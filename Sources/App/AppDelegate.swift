@@ -18,6 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Register with Launch Services so the bundled Quick Look extension
+        // is discoverable even when the app lives outside /Applications.
+        registerWithLaunchServices()
+
         // Build the main menu
         NSApp.mainMenu = MenuBuilder.buildMainMenu()
 
@@ -103,6 +107,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !didCompleteFirstRender, let signpostID = launchSignpostID else { return }
         didCompleteFirstRender = true
         LaunchTimer.endPhase("AppLaunch", id: signpostID)
+    }
+
+    // MARK: - Quick Look Registration
+
+    private func registerWithLaunchServices() {
+        guard let bundleURL = Bundle.main.bundleURL as CFURL? else { return }
+        LSRegisterURL(bundleURL, true)
     }
 
 }
