@@ -119,6 +119,7 @@
 		DF7B1250745978242028AC9E /* GitHubTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubTheme.swift; sourceTree = "<group>"; };
 		CC11223344556677AABB0010 /* ThemeImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeImporter.swift; sourceTree = "<group>"; };
 		CC11223344556677AABB0020 /* CustomTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTheme.swift; sourceTree = "<group>"; };
+		CC11223344556677AABB0030 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		E0172B3489C027F6F6FE19A8 /* ImageAttachmentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAttachmentProvider.swift; sourceTree = "<group>"; };
 		E5277AC4E3BF27276C943D7C /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		E8CA6E5F5D620288AAD4FEAE /* MonokaiTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonokaiTheme.swift; sourceTree = "<group>"; };
@@ -193,6 +194,7 @@
 		A5850A1754F87BFFDD7A50FA = {
 			isa = PBXGroup;
 			children = (
+				CC11223344556677AABB0030 /* Signing.xcconfig */,
 				102D0E9736F65B63DBCC9CB1 /* Sources */,
 				2AD9A81077DDE2D7F8C74CC2 /* Products */,
 			);
@@ -347,12 +349,8 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					2F30148CD4719A7452A6252E = {
-						DevelopmentTeam = 8DCXP39429;
-						ProvisioningStyle = Manual;
 					};
 					EE00000000000000000000E1 = {
-						DevelopmentTeam = 8DCXP39429;
-						ProvisioningStyle = Manual;
 					};
 				};
 			};
@@ -467,17 +465,15 @@
 /* Begin XCBuildConfiguration section */
 		449180D630AD355117B37BC7 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = CC11223344556677AABB0030 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Sources/Resources/mrkd.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 8DCXP39429;
+
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -531,7 +527,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 8DCXP39429;
+
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -591,7 +587,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 8DCXP39429;
+
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -624,13 +620,11 @@
 		};
 		FF00000000000000000000F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = CC11223344556677AABB0030 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/QLExtension/QLExtension.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
-				CODE_SIGN_STYLE = Manual;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 8DCXP39429;
+
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -649,14 +643,12 @@
 		};
 		FF00000000000000000000F2 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = CC11223344556677AABB0030 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/QLExtension/QLExtension.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Manual;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 8DCXP39429;
+
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -676,16 +668,14 @@
 		};
 		FFB1041C2C6C38A5B0A212FD /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = CC11223344556677AABB0030 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Sources/Resources/mrkd.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
-				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 8DCXP39429;
+
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;

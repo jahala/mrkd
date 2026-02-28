@@ -1,0 +1,10 @@
+// Signing configuration.
+// To sign with your Developer ID, create Local.xcconfig (gitignored):
+//
+//   DEVELOPMENT_TEAM = YOUR_TEAM_ID
+//   CODE_SIGN_IDENTITY = Developer ID Application
+//   CODE_SIGN_STYLE = Manual
+//
+// Without Local.xcconfig, Xcode defaults to Automatic signing.
+
+#include? "Local.xcconfig"
