@@ -127,6 +127,14 @@ final class ThemePickerGridView: NSView {
         updateSelection()
     }
 
+    func updateSelection(to themeName: String) {
+        selectedThemeName = themeName
+        if let index = themeNames.firstIndex(of: themeName) {
+            focusedIndex = index
+        }
+        updateSelection()
+    }
+
     private func updateSelection() {
         for (index, card) in themeCards.enumerated() {
             card.isSelected = themeNames[index] == selectedThemeName
