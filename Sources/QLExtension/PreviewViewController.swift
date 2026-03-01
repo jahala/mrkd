@@ -8,6 +8,8 @@ class PreviewViewController: NSViewController, QLPreviewingController {
 
     private var scrollView: NSScrollView!
     private var textView: NSTextView!
+    private var fileURL: URL?
+    private var openButton: NSView!
 
     override func loadView() {
         let size = phiSize()
@@ -36,7 +38,23 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         textView.textContainerInset = NSSize(width: 82, height: 40)
 
         scrollView.documentView = textView
-        view = scrollView
+
+        // Wrap in a plain container so the button floats over the scroll view
+        let container = NSView(frame: frame)
+        container.autoresizingMask = [.width, .height]
+        scrollView.frame = container.bounds
+        container.addSubview(scrollView)
+
+        // Floating "Open" button — mirrors main app's OpenWithButton
+        openButton = makeOpenButton()
+        container.addSubview(openButton)
+        openButton.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            openButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+            openButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
+        ])
+
+        view = container
     }
 
     // MARK: - QLPreviewingController
@@ -58,6 +76,8 @@ class PreviewViewController: NSViewController, QLPreviewingController {
             let theme = resolveTheme()
             let attributed = MarkdownRenderer.render(markdown, theme: theme)
 
+            self.fileURL = url
+
             textView.textStorage?.setAttributedString(attributed)
             scrollView.backgroundColor = theme.backgroundColor
 
@@ -69,27 +89,29 @@ class PreviewViewController: NSViewController, QLPreviewingController {
 
     // MARK: - Theme
 
+    /// Reads a preference from the main app's domain via CFPreferences.
+    /// The main app flushes values to disk with CFPreferencesAppSynchronize
+    /// so they are visible to this sandboxed extension.
+    private static let appID = "com.mrkd.app" as CFString
+
+    private func readPref(_ key: String) -> Any? {
+        CFPreferencesCopyAppValue(key as CFString, Self.appID)
+    }
+
     private func resolveTheme() -> Theme {
-        // Use CFPreferencesCopyAppValue — the official cross-process API.
-        // UserDefaults(suiteName:) doesn't work reliably from a sandboxed
-        // extension reading the main app's preferences domain.
         let themeName = readPref("selectedTheme") as? String ?? "Default"
         let storedSize = readPref("fontSize") as? Double ?? 0
         let fontSize: CGFloat = storedSize > 0 ? CGFloat(storedSize) : 13.0
         let fontFamily = readPref("fontFamily") as? String ?? "SF Mono"
         let codeFontFamily = readPref("codeFontFamily") as? String ?? "JetBrains Mono"
 
-        let isDark = NSAppearance.current.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let theme = makeTheme(named: themeName, isDark: isDark, fontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
 
         if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
             return HighContrastTheme(wrapping: theme)
         }
         return theme
-    }
-
-    private func readPref(_ key: String) -> Any? {
-        CFPreferencesCopyAppValue(key as CFString, "com.mrkd.app" as CFString)
     }
 
     private func makeTheme(named name: String, isDark: Bool, fontSize: CGFloat, fontFamily: String, codeFontFamily: String) -> Theme {
@@ -112,8 +134,12 @@ class PreviewViewController: NSViewController, QLPreviewingController {
     }
 
     private func loadCustomPalette(named name: String) -> ThemePalette? {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let themesDir = appSupport.appendingPathComponent("com.mrkd.app/Themes", isDirectory: true)
+        // Use the real home directory (not the sandbox container) to find custom
+        // themes installed by the main app. Requires the
+        // temporary-exception.files.absolute-path.read-only entitlement.
+        let realHome = String(cString: getpwuid(getuid())!.pointee.pw_dir!)
+        let themesDir = URL(fileURLWithPath: realHome)
+            .appendingPathComponent("Library/Application Support/com.mrkd.app/Themes", isDirectory: true)
 
         guard let files = try? FileManager.default.contentsOfDirectory(at: themesDir, includingPropertiesForKeys: nil) else {
             return nil
@@ -127,6 +153,89 @@ class PreviewViewController: NSViewController, QLPreviewingController {
             }
         }
         return nil
+    }
+
+    // MARK: - Open With Button
+
+    private func makeOpenButton() -> NSView {
+        let effect = NSVisualEffectView()
+        effect.material = .hudWindow
+        effect.state = .active
+        effect.blendingMode = .behindWindow
+        effect.wantsLayer = true
+        effect.layer?.cornerRadius = 4
+
+        let button = NSButton()
+        button.bezelStyle = .texturedRounded
+        button.isBordered = false
+        button.title = "Open"
+        button.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: "Open")
+        button.imagePosition = .imageTrailing
+        button.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        button.contentTintColor = .secondaryLabelColor
+        button.target = self
+        button.action = #selector(openButtonClicked)
+
+        effect.addSubview(button)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            button.topAnchor.constraint(equalTo: effect.topAnchor),
+            button.leadingAnchor.constraint(equalTo: effect.leadingAnchor, constant: 10),
+            button.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -10),
+            button.bottomAnchor.constraint(equalTo: effect.bottomAnchor),
+            effect.heightAnchor.constraint(equalToConstant: 26),
+        ])
+
+        effect.setAccessibilityRole(.button)
+        effect.setAccessibilityLabel("Open with another application")
+
+        return effect
+    }
+
+    @objc private func openButtonClicked() {
+        guard let url = fileURL else { return }
+
+        let menu = NSMenu()
+
+        // The parent app is: QLPlugin.appex → PlugIns → Contents → mrkd.app
+        let appexURL = Bundle.main.bundleURL
+        let parentAppURL = appexURL
+            .deletingLastPathComponent() // PlugIns
+            .deletingLastPathComponent() // Contents
+            .deletingLastPathComponent() // mrkd.app
+        let parentAppStd = parentAppURL.standardizedFileURL
+
+        let apps = NSWorkspace.shared.urlsForApplications(toOpen: url)
+            .filter { $0.standardizedFileURL != parentAppStd }
+
+        if apps.isEmpty {
+            let item = NSMenuItem(title: "No applications available", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        } else {
+            let iconSize = NSSize(width: 16, height: 16)
+            for appURL in apps {
+                let appName = appURL.deletingPathExtension().lastPathComponent
+                let item = NSMenuItem(title: appName, action: #selector(openWithApp(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = appURL
+                let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+                icon.size = iconSize
+                item.image = icon
+                menu.addItem(item)
+            }
+        }
+
+        menu.popUp(positioning: nil, at: NSPoint(x: openButton.bounds.minX, y: openButton.bounds.minY), in: openButton)
+    }
+
+    @objc private func openWithApp(_ sender: NSMenuItem) {
+        guard let appURL = sender.representedObject as? URL,
+              let url = fileURL else { return }
+
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: config)
     }
 
     // MARK: - Sizing

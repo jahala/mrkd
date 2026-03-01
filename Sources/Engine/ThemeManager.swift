@@ -37,8 +37,20 @@ final class ThemeManager: NSObject {
 
     // MARK: - Properties
 
+    /// Bundle identifier used for cross-process CFPreferences sharing
+    /// with the Quick Look extension.
+    private static let appID = "com.mrkd.app" as CFString
+
     private var appearanceObservation: NSKeyValueObservation?
     private var customPalettes: [String: ThemePalette] = [:]
+
+    /// Writes a preference via CFPreferences and immediately flushes to disk
+    /// so the sandboxed Quick Look extension can read it via
+    /// CFPreferencesCopyAppValue.
+    private func persistPref(_ key: String, value: CFPropertyList) {
+        CFPreferencesSetAppValue(key as CFString, value, Self.appID)
+        CFPreferencesAppSynchronize(Self.appID)
+    }
 
     private static var themesDirectory: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -51,6 +63,7 @@ final class ThemeManager: NSObject {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "selectedTheme")
+            persistPref("selectedTheme", value: newValue as CFString)
             notifyThemeChange()
         }
     }
@@ -62,6 +75,7 @@ final class ThemeManager: NSObject {
         }
         set {
             UserDefaults.standard.set(Double(newValue), forKey: "fontSize")
+            persistPref("fontSize", value: Double(newValue) as CFPropertyList)
             notifyThemeChange()
         }
     }
@@ -72,6 +86,7 @@ final class ThemeManager: NSObject {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "fontFamily")
+            persistPref("fontFamily", value: newValue as CFString)
             notifyThemeChange()
         }
     }
@@ -82,6 +97,7 @@ final class ThemeManager: NSObject {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "codeFontFamily")
+            persistPref("codeFontFamily", value: newValue as CFString)
             notifyThemeChange()
         }
     }
@@ -110,9 +126,22 @@ final class ThemeManager: NSObject {
 
     private override init() {
         super.init()
+        flushPreferencesToDisk()
         observeAppearanceChanges()
         observeAccessibilityChanges()
         loadCustomThemes()
+    }
+
+    /// Flush any existing UserDefaults values to the on-disk plist via
+    /// CFPreferences so the QL extension can read them on first launch.
+    private func flushPreferencesToDisk() {
+        let keys = ["selectedTheme", "fontSize", "fontFamily", "codeFontFamily"]
+        for key in keys {
+            if let value = UserDefaults.standard.object(forKey: key) {
+                CFPreferencesSetAppValue(key as CFString, value as CFPropertyList, Self.appID)
+            }
+        }
+        CFPreferencesAppSynchronize(Self.appID)
     }
 
     private func loadCustomThemes() {
