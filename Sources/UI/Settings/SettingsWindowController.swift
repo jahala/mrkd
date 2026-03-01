@@ -56,6 +56,7 @@ final class SettingsWindowController: NSWindowController {
         stackView.alignment = .leading
         stackView.spacing = 16
         stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
 
         let themeSectionLabel = NSTextField(labelWithString: "Theme")
         themeSectionLabel.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -88,12 +89,26 @@ final class SettingsWindowController: NSWindowController {
         stackView.addArrangedSubview(bodyFontRow)
         stackView.addArrangedSubview(codeFontRow)
 
-        contentView.addSubview(stackView)
+        // Wrap in a scroll view so all content is reachable
+        let scrollView = NSScrollView()
+        scrollView.documentView = stackView
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.drawsBackground = false
+        scrollView.automaticallyAdjustsContentInsets = true
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        contentView.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            stackView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
-            stackView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            stackView.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -20)
+            scrollView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+
+            stackView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            stackView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
         ])
 
         window?.makeFirstResponder(themePickerGrid)
@@ -235,6 +250,8 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func updateUIForCurrentTheme() {
+        themePickerGrid.updateSelection(to: ThemeManager.shared.selectedThemeName)
+
         let currentFamily = ThemeManager.shared.fontFamily
         if bodyFontPopUpButton.selectedItem?.title != currentFamily {
             bodyFontPopUpButton.selectItem(withTitle: currentFamily)

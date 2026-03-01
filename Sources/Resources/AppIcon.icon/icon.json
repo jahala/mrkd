@@ -1,7 +1,7 @@
 {
   "fill" : {
     "linear-gradient" : [
-      "display-p3:0.00000,0.14615,0.79130,1.00000",
+      "display-p3:0.00108,0.44143,0.79130,1.00000",
       "display-p3:0.00000,0.02020,0.07314,1.00000"
     ],
     "orientation" : {
@@ -21,7 +21,7 @@
       "layers" : [
         {
           "fill" : {
-            "solid" : "display-p3:0.96783,0.90206,0.00000,1.00000"
+            "solid" : "display-p3:0.75274,0.83350,0.96783,1.00000"
           },
           "image-name" : "ChatGPT Image Feb 28, 2026, 10_27_10 PM.png",
           "name" : "ChatGPT Image Feb 28, 2026, 10_27_10 PM",

@@ -10,7 +10,7 @@ No Electron. No WebView. Markdown is parsed with cmark-gfm and rendered directly
 - **Themes** -- Built-in themes and import your own from iTerm2 or VS Code
 - **Typography** -- Variable font support with configurable body and code fonts (Geist, Inter, iA Writer Mono, JetBrains Mono, and more)
 - **Open With** -- Send the current file to any app on your Mac with one click
-- **Preview** -- Integrates with Quick Look in Finder
+- **Quick Look** -- Preview markdown files in Finder with your selected theme, fonts, and an Open button
 - **Performance** -- Tiered rendering pipeline for files of any size
 - **Accessibility** -- VoiceOver, Full Keyboard Access, Increase Contrast, Reduce Transparency
 
