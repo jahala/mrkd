@@ -114,6 +114,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func registerWithLaunchServices() {
         guard let bundleURL = Bundle.main.bundleURL as CFURL? else { return }
         LSRegisterURL(bundleURL, true)
+
+        // When the app version changes, reset the Quick Look cache so macOS
+        // picks up the updated QL extension binary instead of the cached one.
+        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+        let versionKey = "\(currentVersion)-\(buildNumber)"
+        let lastVersion = UserDefaults.standard.string(forKey: "lastRegisteredVersion")
+
+        if lastVersion != versionKey {
+            UserDefaults.standard.set(versionKey, forKey: "lastRegisteredVersion")
+            refreshQuickLookExtension()
+        }
+    }
+
+    /// Force macOS to pick up the updated Quick Look extension after an app update.
+    /// The QL extension runs as a separate long-lived process; simply replacing the
+    /// .app bundle doesn't cause it to reload. We need to:
+    /// 1. Re-register the appex with pluginkit
+    /// 2. Reset the Quick Look server and preview cache
+    /// 3. Kill QuickLookUIService which caches the loaded extension
+    private func refreshQuickLookExtension() {
+        Task.detached(priority: .utility) {
+            let appexPath = Bundle.main.builtInPlugInsURL?
+                .appendingPathComponent("QLPlugin.appex").path ?? ""
+
+            // Kill the running QL extension process so macOS loads the new binary.
+            Self.runProcess("/usr/bin/killall", arguments: ["QLPlugin"])
+
+            // Re-register the extension with the plugin system.
+            if !appexPath.isEmpty {
+                Self.runProcess("/usr/bin/pluginkit", arguments: ["-a", appexPath])
+            }
+
+            // Reset the Quick Look server and preview cache.
+            Self.runProcess("/usr/bin/qlmanage", arguments: ["-r"])
+            Self.runProcess("/usr/bin/qlmanage", arguments: ["-r", "cache"])
+
+            // Kill the QuickLookUIService that caches loaded extensions.
+            Self.runProcess("/usr/bin/killall", arguments: ["QuickLookUIService"])
+        }
+    }
+
+    private nonisolated static func runProcess(_ path: String, arguments: [String]) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        process.standardOutput = nil
+        process.standardError = nil
+        try? process.run()
+        process.waitUntilExit()
     }
 
 }
