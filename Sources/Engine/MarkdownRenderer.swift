@@ -689,14 +689,12 @@ enum MarkdownRenderer {
         into result: NSMutableAttributedString,
         theme: Theme
     ) {
-        // Collect rows and cells with type information
-        var rows: [[(text: String, isHeader: Bool)]] = []
+        // Collect rows with cell text and header flag
+        var rows: [[(text: NSMutableAttributedString, isHeader: Bool)]] = []
         var child = cmark_node_first_child(node)
         var isFirstRow = true
         while let row = child {
-            var cells: [(text: String, isHeader: Bool)] = []
-
-            // Check if this row is a table_header
+            var cells: [(text: NSMutableAttributedString, isHeader: Bool)] = []
             let isHeaderRow = isFirstRow || {
                 if let typeName = cmark_node_get_type_string(row) {
                     return String(cString: typeName) == "table_header"
@@ -708,7 +706,7 @@ enum MarkdownRenderer {
             while let cell = cellNode {
                 let cellText = NSMutableAttributedString()
                 renderChildren(of: cell, into: cellText, theme: theme, listDepth: 0, listIndex: 0, isOrdered: false)
-                cells.append((text: cellText.string, isHeader: isHeaderRow))
+                cells.append((text: cellText, isHeader: isHeaderRow))
                 cellNode = cmark_node_next(cell)
             }
             rows.append(cells)
@@ -718,58 +716,61 @@ enum MarkdownRenderer {
 
         guard !rows.isEmpty else { return }
 
-        // Calculate column widths
         let colCount = rows.map(\.count).max() ?? 0
-        var colWidths = [Int](repeating: 0, count: colCount)
-        for row in rows {
-            for (i, cell) in row.enumerated() where i < colCount {
-                colWidths[i] = max(colWidths[i], cell.text.count)
-            }
-        }
+        let table = NSTextTable()
+        table.numberOfColumns = colCount
+        table.setContentWidth(100, type: .percentageValueType)
+        table.hidesEmptyCells = false
 
-        // Render table with box-drawing characters.
-        // Call codeBlockAttributes ONCE so all rows share the same NSTextBlock
-        // instance — consecutive paragraphs must share the same text block for
-        // the layout engine to render them as one continuous background region.
-        let codeAttrs = theme.codeBlockAttributes
+        for (rowIndex, row) in rows.enumerated() {
+            let isHeader = row.first?.isHeader ?? false
+            for colIndex in 0..<colCount {
+                let cell = NSTextTableBlock(table: table, startingRow: rowIndex, rowSpan: 1, startingColumn: colIndex, columnSpan: 1)
 
-        // Header
-        if let header = rows.first {
-            let headerTexts = header.map(\.text)
-            let headerLine = formatTableRow(headerTexts, widths: colWidths)
-
-            // Bold font for header — only override .font, keep shared paragraph style
-            var headerAttrs = codeAttrs
-            if header.first?.isHeader == true {
-                if let currentFont = codeAttrs[.font] as? NSFont {
-                    let boldFont = NSFontManager.shared.convert(currentFont, toHaveTrait: .boldFontMask)
-                    headerAttrs[.font] = boldFont
+                // Cell background
+                if isHeader {
+                    cell.backgroundColor = theme.tableHeaderBackgroundColor
+                } else if rowIndex % 2 == 0 {
+                    cell.backgroundColor = theme.tableRowAlternateBackgroundColor
                 }
+
+                // Border
+                cell.setBorderColor(theme.tableBorderColor)
+                cell.setWidth(0.5, type: .absoluteValueType, for: .border)
+
+                // Padding
+                cell.setWidth(6, type: .absoluteValueType, for: .padding, edge: .minY)
+                cell.setWidth(6, type: .absoluteValueType, for: .padding, edge: .maxY)
+                cell.setWidth(10, type: .absoluteValueType, for: .padding, edge: .minX)
+                cell.setWidth(10, type: .absoluteValueType, for: .padding, edge: .maxX)
+
+                let paragraphStyle = NSMutableParagraphStyle()
+                paragraphStyle.textBlocks = [cell]
+
+                let cellContent: NSMutableAttributedString
+                if colIndex < row.count {
+                    cellContent = NSMutableAttributedString(attributedString: row[colIndex].text)
+                } else {
+                    cellContent = NSMutableAttributedString(string: "")
+                }
+
+                // Apply paragraph style and font
+                let range = NSRange(location: 0, length: cellContent.length)
+                cellContent.addAttribute(.paragraphStyle, value: paragraphStyle, range: range)
+
+                if isHeader {
+                    let boldFont = theme.font(size: theme.bodyFontSize, weight: .semibold)
+                    cellContent.addAttribute(.font, value: boldFont, range: range)
+                }
+
+                // Ensure cell ends with newline (required by NSTextTable)
+                if !cellContent.string.hasSuffix("\n") {
+                    cellContent.append(NSAttributedString(string: "\n"))
+                }
+
+                result.append(cellContent)
             }
-            result.append(NSAttributedString(string: headerLine + "\n", attributes: headerAttrs))
-
-            // Separator
-            let separator = colWidths.map { String(repeating: "\u{2500}", count: $0 + 2) }.joined(separator: "\u{253C}")
-            result.append(NSAttributedString(string: "\u{251C}" + separator + "\u{2524}\n", attributes: codeAttrs))
         }
-
-        // Data rows
-        for row in rows.dropFirst() {
-            let rowTexts = row.map(\.text)
-            let line = formatTableRow(rowTexts, widths: colWidths)
-            result.append(NSAttributedString(string: line + "\n", attributes: codeAttrs))
-        }
-
-        appendNewlines(result, count: 1)
-    }
-
-    private static func formatTableRow(_ cells: [String], widths: [Int]) -> String {
-        var parts: [String] = []
-        for (i, width) in widths.enumerated() {
-            let cell = i < cells.count ? cells[i] : ""
-            parts.append(" " + cell.padding(toLength: width, withPad: " ", startingAt: 0) + " ")
-        }
-        return "\u{2502}" + parts.joined(separator: "\u{2502}") + "\u{2502}"
     }
 
     // MARK: - Helpers
