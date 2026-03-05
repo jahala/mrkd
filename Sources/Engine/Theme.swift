@@ -24,6 +24,11 @@ protocol Theme {
     var blockquoteColor: NSColor { get }
     var blockquoteBarColor: NSColor { get }
 
+    // Tables
+    var tableHeaderBackgroundColor: NSColor { get }
+    var tableRowAlternateBackgroundColor: NSColor { get }
+    var tableBorderColor: NSColor { get }
+
     // Syntax highlighting
     var highlightrTheme: String { get }
 
@@ -58,6 +63,10 @@ extension Theme {
         let isDark = (backgroundColor.usingColorSpace(.sRGB)?.brightnessComponent ?? 0.5) < 0.5
         return isDark ? "atom-one-dark" : "atom-one-light"
     }
+
+    var tableHeaderBackgroundColor: NSColor { codeBackgroundColor.withAlphaComponent(0.5) }
+    var tableRowAlternateBackgroundColor: NSColor { codeBackgroundColor.withAlphaComponent(0.25) }
+    var tableBorderColor: NSColor { NSColor.separatorColor }
 
     func admonitionColor(type: AdmonitionType) -> NSColor {
         switch type {
