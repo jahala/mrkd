@@ -13,15 +13,18 @@
 		082C36149B419EF238AA46BE /* FontRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11352C8AE8884B1DE12FB7F /* FontRegistrar.swift */; };
 		0B162345A7697D942A2D8430 /* FileTierRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C138CB1B74725CC806129009 /* FileTierRouter.swift */; };
 		0B38EEA3B7951FE064B5F748 /* GitHubTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7B1250745978242028AC9E /* GitHubTheme.swift */; };
+		0FF8C0C8B25F3D23C80A7B2F /* MarkdownViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33138D0EB28F07B51DF582E0 /* MarkdownViewController.swift */; };
 		1A349CEF6C04FE9B35630989 /* MarkdownViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33138D0EB28F07B51DF582E0 /* MarkdownViewController.swift */; };
 		1E6730488D8937927510A98E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F7DA5188A6D96A2D7C7918 /* AppDelegate.swift */; };
 		2D9CDDA1F160FE2DE75724B1 /* ScrollAheadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D6F2B60A15669C8EA103CF /* ScrollAheadController.swift */; };
 		32F51FA820DA4139DA08BCDA /* MonokaiTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CA6E5F5D620288AAD4FEAE /* MonokaiTheme.swift */; };
+		3514B376F05639775C29233F /* TOCFloatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48BCF30227B4553AC563593C /* TOCFloatingView.swift */; };
 		35DAA75038441602737569C6 /* SnazzyTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4212CE3CD7A1DE6ED312411 /* SnazzyTheme.swift */; };
 		4158D8C5FBC0E8833800ABD9 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BEF4EC19CCD6BC11DF88F49 /* Theme.swift */; };
 		445A4C321577FD671F67989C /* cmark-gfm in Frameworks */ = {isa = PBXBuildFile; productRef = F851C7A26A81D8B4CBE402C3 /* cmark-gfm */; };
 		4623DF9D573350C63F9F9729 /* HighContrastTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80BA223DB28EB9E0844D2497 /* HighContrastTheme.swift */; };
 		4D1ABD788041F11E6736DB70 /* SmartTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100CE565A885D5D926239003 /* SmartTypography.swift */; };
+		4D899BF473CDD20DB5278BF8 /* TextInteractionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107D699E48B66B070525BE2D /* TextInteractionHandler.swift */; };
 		4E595406D176D3D95B2DAC8B /* ReloadBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0644988ADABEF7A324F3DB95 /* ReloadBannerView.swift */; };
 		594A6FD2605258EFC5E25694 /* TOCFloatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48BCF30227B4553AC563593C /* TOCFloatingView.swift */; };
 		5BBD203DDE255904985746A6 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF30C3187B9524F379E016 /* Highlightr */; };
@@ -50,19 +53,23 @@
 		A5051FB072E123C43276BB23 /* MenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8BD035C361D1EDC06E087A4 /* MenuBuilder.swift */; };
 		A5DB23126A73A7E28AB236B1 /* LaunchTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F211E3BEA3B30B9E75F4D9 /* LaunchTimer.swift */; };
 		AC202FD967DF1E94137DA73A /* QLPlugin.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BEC5AA2ABD29137BCD9866D1 /* QLPlugin.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AFD8CC97AA50129D9A190AF7 /* FragmentLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BC66C785F405D66D8E1C601 /* FragmentLinkHandler.swift */; };
 		B11CA5BED7387E2D23BAD074 /* RenderPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66718D25392A612CE84695D /* RenderPipeline.swift */; };
 		BA4C2BB65B18B6B5C7D29D23 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D29166E800D589137CBB78 /* main.swift */; };
 		BD980C1895B5EC74A86A8244 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75DB822B1B2CCBF360C2A9C /* ThemeManager.swift */; };
 		BF066B60A7634935791539D0 /* ImageAttachmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0172B3489C027F6F6FE19A8 /* ImageAttachmentProvider.swift */; };
 		C038788BDE819D5573A8E610 /* TextInteractionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107D699E48B66B070525BE2D /* TextInteractionHandler.swift */; };
 		C044582A4CA148A4643E4346 /* MemoryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5535CA3142DB51FD8F75768E /* MemoryMonitor.swift */; };
+		C44679629B2706B48BB4CE59 /* FontSizeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7A27ACAA03302046BE6CAE /* FontSizeManager.swift */; };
 		C469ED46E451B944D4F61F16 /* BlockSplitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8B4B138B0EA417DF1AD8AA /* BlockSplitter.swift */; };
 		C81812EF91C68041AF97BE49 /* ImageAttachmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0172B3489C027F6F6FE19A8 /* ImageAttachmentProvider.swift */; };
 		C943B673B8E6DE45F7229515 /* cmark-gfm in Frameworks */ = {isa = PBXBuildFile; productRef = AE8AC78C0DE5FF0E2FAD18A9 /* cmark-gfm */; };
 		C9D7B00F59AF01A39A04A954 /* cmark-gfm-extensions in Frameworks */ = {isa = PBXBuildFile; productRef = FA14B97471628A347AC950B2 /* cmark-gfm-extensions */; };
 		CA2E72D59800CEC6FA45A40C /* TOCBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C687AE965FF8BCDDE8FC51A /* TOCBuilder.swift */; };
 		CE4D4BBB9B79ABCF47EBBA6D /* FontRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11352C8AE8884B1DE12FB7F /* FontRegistrar.swift */; };
+		D05CE920CB61E4BA3085DD2B /* OpenWithButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78A1A9B5019712727AD01EB /* OpenWithButton.swift */; };
 		D1B0845164B20118025523AF /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = D252F075A990071AA698004D /* Highlightr */; };
+		DDA3FA6CC120667EE7870387 /* ReloadBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0644988ADABEF7A324F3DB95 /* ReloadBannerView.swift */; };
 		E193C639267C4EC420E801D5 /* cmark-gfm-extensions in Frameworks */ = {isa = PBXBuildFile; productRef = C7133A7D915E1DE059AD707D /* cmark-gfm-extensions */; };
 		E6432E8025AD05C91014DCBA /* MonokaiTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CA6E5F5D620288AAD4FEAE /* MonokaiTheme.swift */; };
 		EC8C2657F62BE8D673B4925F /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15D2C41833550F78C1030518 /* MarkdownRenderer.swift */; };
@@ -72,6 +79,7 @@
 		F26FC29D7745A908671F1C8C /* MemoryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5535CA3142DB51FD8F75768E /* MemoryMonitor.swift */; };
 		F2B03BE8DE3E0AB7BCD5F9A4 /* ThemeImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FC9E3E925851D83C58DD48 /* ThemeImporter.swift */; };
 		F5F59335E071C62C9342BFC5 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 23D7AB178DFD0D6BC307F920 /* AppIcon.icon */; };
+		F63F20E4123E190AF96E5C01 /* FileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9C15BB191CEC030B6D3BE4 /* FileWatcher.swift */; };
 		FA80537875AEF0EAF0590B6D /* FileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9C15BB191CEC030B6D3BE4 /* FileWatcher.swift */; };
 /* End PBXBuildFile section */
 
@@ -141,7 +149,7 @@
 		E5277AC4E3BF27276C943D7C /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		E8CA6E5F5D620288AAD4FEAE /* MonokaiTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonokaiTheme.swift; sourceTree = "<group>"; };
 		F4D793185EE4AB6D9EE62EB7 /* PreviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewViewController.swift; sourceTree = "<group>"; };
-		"TEMP_247DF937-1D46-409C-BD8B-D73D7C2BFF17" /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		"TEMP_D7C8F15D-DAE8-4A98-BD42-AA1797771FE7" /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -311,10 +319,10 @@
 			path = Pipeline;
 			sourceTree = "<group>";
 		};
-		"TEMP_684F0040-4E27-4316-98E4-F4884923F666" /* hyderabad */ = {
+		"TEMP_7107C4CA-ED27-4DA0-8814-03C873771BCB" /* hyderabad */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_247DF937-1D46-409C-BD8B-D73D7C2BFF17" /* Signing.xcconfig */,
+				"TEMP_D7C8F15D-DAE8-4A98-BD42-AA1797771FE7" /* Signing.xcconfig */,
 			);
 			path = hyderabad;
 			sourceTree = "<group>";
@@ -424,19 +432,27 @@
 				6D2B8F26E8391A1175E12396 /* CustomTheme.swift in Sources */,
 				81B5CC895154011DF5B2145F /* FileReader.swift in Sources */,
 				0B162345A7697D942A2D8430 /* FileTierRouter.swift in Sources */,
+				F63F20E4123E190AF96E5C01 /* FileWatcher.swift in Sources */,
 				CE4D4BBB9B79ABCF47EBBA6D /* FontRegistrar.swift in Sources */,
+				C44679629B2706B48BB4CE59 /* FontSizeManager.swift in Sources */,
+				AFD8CC97AA50129D9A190AF7 /* FragmentLinkHandler.swift in Sources */,
 				0B38EEA3B7951FE064B5F748 /* GitHubTheme.swift in Sources */,
 				4623DF9D573350C63F9F9729 /* HighContrastTheme.swift in Sources */,
 				C81812EF91C68041AF97BE49 /* ImageAttachmentProvider.swift in Sources */,
 				EC8C2657F62BE8D673B4925F /* MarkdownRenderer.swift in Sources */,
+				0FF8C0C8B25F3D23C80A7B2F /* MarkdownViewController.swift in Sources */,
 				C044582A4CA148A4643E4346 /* MemoryMonitor.swift in Sources */,
 				E6432E8025AD05C91014DCBA /* MonokaiTheme.swift in Sources */,
+				D05CE920CB61E4BA3085DD2B /* OpenWithButton.swift in Sources */,
 				61858144340601E98AB081D5 /* PreviewViewController.swift in Sources */,
+				DDA3FA6CC120667EE7870387 /* ReloadBannerView.swift in Sources */,
 				04C38A200772512A883BB2ED /* RenderPipeline.swift in Sources */,
 				62CDCA35D76225D9D68D91CE /* ScrollAheadController.swift in Sources */,
 				4D1ABD788041F11E6736DB70 /* SmartTypography.swift in Sources */,
 				7585AB4D6B58396A783D69DB /* SnazzyTheme.swift in Sources */,
 				CA2E72D59800CEC6FA45A40C /* TOCBuilder.swift in Sources */,
+				3514B376F05639775C29233F /* TOCFloatingView.swift in Sources */,
+				4D899BF473CDD20DB5278BF8 /* TextInteractionHandler.swift in Sources */,
 				0302525B11CE6711E26315AA /* Theme.swift in Sources */,
 				A3A29687AD1D7FA2BE2D3AA4 /* ThemeImporter.swift in Sources */,
 				BD980C1895B5EC74A86A8244 /* ThemeManager.swift in Sources */,
@@ -499,7 +515,7 @@
 /* Begin XCBuildConfiguration section */
 		449180D630AD355117B37BC7 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_247DF937-1D46-409C-BD8B-D73D7C2BFF17" /* Signing.xcconfig */;
+			baseConfigurationReference = "TEMP_D7C8F15D-DAE8-4A98-BD42-AA1797771FE7" /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/Resources/mrkd.entitlements;
@@ -519,7 +535,7 @@
 		};
 		4BE24E1F846D3634BF0A6443 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_247DF937-1D46-409C-BD8B-D73D7C2BFF17" /* Signing.xcconfig */;
+			baseConfigurationReference = "TEMP_D7C8F15D-DAE8-4A98-BD42-AA1797771FE7" /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/QLExtension/QLExtension.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -660,7 +676,7 @@
 		};
 		D1193EFDC84AA0BB2B4115A1 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_247DF937-1D46-409C-BD8B-D73D7C2BFF17" /* Signing.xcconfig */;
+			baseConfigurationReference = "TEMP_D7C8F15D-DAE8-4A98-BD42-AA1797771FE7" /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/QLExtension/QLExtension.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -680,7 +696,7 @@
 		};
 		FFB1041C2C6C38A5B0A212FD /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_247DF937-1D46-409C-BD8B-D73D7C2BFF17" /* Signing.xcconfig */;
+			baseConfigurationReference = "TEMP_D7C8F15D-DAE8-4A98-BD42-AA1797771FE7" /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/Resources/mrkd.entitlements;

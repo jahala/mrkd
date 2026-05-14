@@ -18,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        observeFirstRender()
+
         // Register with Launch Services so the bundled Quick Look extension
         // is discoverable even when the app lives outside /Applications.
         registerWithLaunchServices()
@@ -105,7 +107,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Launch Tracking
 
-    func notifyFirstRenderComplete() {
+    private var firstRenderObserver: NSObjectProtocol?
+
+    private func observeFirstRender() {
+        firstRenderObserver = NotificationCenter.default.addObserver(
+            forName: .markdownInitialRenderComplete,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.notifyFirstRenderComplete()
+        }
+    }
+
+    private func notifyFirstRenderComplete() {
         guard !didCompleteFirstRender, let signpostID = launchSignpostID else { return }
         didCompleteFirstRender = true
         LaunchTimer.endPhase("AppLaunch", id: signpostID)

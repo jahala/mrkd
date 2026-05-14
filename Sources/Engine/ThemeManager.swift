@@ -57,9 +57,17 @@ final class ThemeManager: NSObject {
         return appSupport.appendingPathComponent("com.mrkd.app/Themes", isDirectory: true)
     }
 
+    // Preference reads route through CFPreferences with the main app's
+    // bundle ID rather than UserDefaults.standard. In the QL extension's
+    // sandbox, UserDefaults.standard reads the extension's own domain
+    // (com.mrkd.app.QLPlugin) — empty for these keys. CFPreferences with
+    // the explicit appID reads the main app's plist regardless of which
+    // process is calling. Writes (setters) keep the UserDefaults+persistPref
+    // pair so the main app's in-process cache stays warm.
+
     var selectedThemeName: String {
         get {
-            UserDefaults.standard.string(forKey: "selectedTheme") ?? "Default"
+            (CFPreferencesCopyAppValue("selectedTheme" as CFString, Self.appID) as? String) ?? "Default"
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "selectedTheme")
@@ -70,7 +78,7 @@ final class ThemeManager: NSObject {
 
     var fontSize: CGFloat {
         get {
-            let stored = UserDefaults.standard.double(forKey: "fontSize")
+            let stored = (CFPreferencesCopyAppValue("fontSize" as CFString, Self.appID) as? Double) ?? 0
             return stored > 0 ? CGFloat(stored) : 13.0
         }
         set {
@@ -82,7 +90,7 @@ final class ThemeManager: NSObject {
 
     var fontFamily: String {
         get {
-            UserDefaults.standard.string(forKey: "fontFamily") ?? "SF Mono"
+            (CFPreferencesCopyAppValue("fontFamily" as CFString, Self.appID) as? String) ?? "SF Mono"
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "fontFamily")
@@ -93,7 +101,7 @@ final class ThemeManager: NSObject {
 
     var codeFontFamily: String {
         get {
-            UserDefaults.standard.string(forKey: "codeFontFamily") ?? "JetBrains Mono"
+            (CFPreferencesCopyAppValue("codeFontFamily" as CFString, Self.appID) as? String) ?? "JetBrains Mono"
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "codeFontFamily")
