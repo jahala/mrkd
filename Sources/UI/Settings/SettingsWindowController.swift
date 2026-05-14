@@ -13,7 +13,10 @@ final class SettingsWindowController: NSWindowController {
     private let contentView = NSView()
     private var themePickerGrid: ThemePickerGridView!
     private var bodyFontPopUpButton: NSPopUpButton!
+    private var bodyFontSizePopUpButton: NSPopUpButton!
     private var codeFontPopUpButton: NSPopUpButton!
+
+    private static let bodyFontSizes: [Int] = [11, 12, 13, 14, 15, 16, 17, 18, 20]
 
     private static let monospaceFonts = [
         "SF Mono", "Menlo", "Fira Code", "JetBrains Mono", "Geist Mono", "Source Code Pro", "IBM Plex Mono",
@@ -76,6 +79,8 @@ final class SettingsWindowController: NSWindowController {
             assignTo: &bodyFontPopUpButton
         )
 
+        let fontSizeRow = createFontSizeRow()
+
         let codeFontRow = createFontRow(
             label: "Code Font",
             families: Self.monospaceFonts,
@@ -87,6 +92,7 @@ final class SettingsWindowController: NSWindowController {
         stackView.addArrangedSubview(themeSectionLabel)
         stackView.addArrangedSubview(themePickerGrid)
         stackView.addArrangedSubview(bodyFontRow)
+        stackView.addArrangedSubview(fontSizeRow)
         stackView.addArrangedSubview(codeFontRow)
 
         // Wrap in a scroll view so all content is reachable
@@ -178,11 +184,67 @@ final class SettingsWindowController: NSWindowController {
         return container
     }
 
+    private func createFontSizeRow() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = NSTextField(labelWithString: "Font Size")
+        label.font = .systemFont(ofSize: 13, weight: .semibold)
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let popUpButton = NSPopUpButton()
+        popUpButton.translatesAutoresizingMaskIntoConstraints = false
+        popUpButton.target = self
+        popUpButton.action = #selector(bodyFontSizeChanged(_:))
+        bodyFontSizePopUpButton = popUpButton
+
+        let current = Int(ThemeManager.shared.fontSize.rounded())
+        for size in Self.bodyFontSizes {
+            let menuItem = NSMenuItem(title: "\(size) pt", action: nil, keyEquivalent: "")
+            menuItem.representedObject = size
+            popUpButton.menu?.addItem(menuItem)
+            if size == current {
+                popUpButton.select(menuItem)
+            }
+        }
+
+        // Surface a non-preset size (e.g. result of repeated ⌘+ / ⌘-)
+        // so the user can see what's active and re-select it.
+        if !Self.bodyFontSizes.contains(current) {
+            let menuItem = NSMenuItem(title: "\(current) pt", action: nil, keyEquivalent: "")
+            menuItem.representedObject = current
+            popUpButton.menu?.addItem(menuItem)
+            popUpButton.select(menuItem)
+        }
+
+        container.addSubview(label)
+        container.addSubview(popUpButton)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            label.widthAnchor.constraint(equalToConstant: 80),
+
+            popUpButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
+            popUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            popUpButton.widthAnchor.constraint(equalToConstant: 90),
+
+            container.heightAnchor.constraint(equalTo: popUpButton.heightAnchor)
+        ])
+
+        return container
+    }
+
     // MARK: - Actions
 
     @objc private func bodyFontChanged(_ sender: NSPopUpButton) {
         guard let selectedTitle = sender.selectedItem?.title else { return }
         ThemeManager.shared.fontFamily = selectedTitle
+    }
+
+    @objc private func bodyFontSizeChanged(_ sender: NSPopUpButton) {
+        guard let size = sender.selectedItem?.representedObject as? Int else { return }
+        ThemeManager.shared.fontSize = CGFloat(size)
     }
 
     @objc private func codeFontChanged(_ sender: NSPopUpButton) {
@@ -261,6 +323,22 @@ final class SettingsWindowController: NSWindowController {
         if codeFontPopUpButton.selectedItem?.title != currentCodeFamily {
             codeFontPopUpButton.selectItem(withTitle: currentCodeFamily)
         }
+
+        let currentSize = Int(ThemeManager.shared.fontSize.rounded())
+        let currentMenuSize = bodyFontSizePopUpButton.selectedItem?.representedObject as? Int
+        if currentMenuSize != currentSize {
+            if let match = bodyFontSizePopUpButton.itemArray.first(where: {
+                ($0.representedObject as? Int) == currentSize
+            }) {
+                bodyFontSizePopUpButton.select(match)
+            } else {
+                let menuItem = NSMenuItem(title: "\(currentSize) pt", action: nil, keyEquivalent: "")
+                menuItem.representedObject = currentSize
+                bodyFontSizePopUpButton.menu?.addItem(menuItem)
+                bodyFontSizePopUpButton.select(menuItem)
+            }
+        }
+
     }
 
     // MARK: - Window Management

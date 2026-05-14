@@ -19,6 +19,7 @@ struct CustomTheme: Theme {
     var backgroundColor: NSColor { palette.backgroundColor }
     var textColor: NSColor { palette.textColor }
     var linkColor: NSColor { palette.linkColor }
+    var accentColor: NSColor { palette.headingColor }
     var codeBackgroundColor: NSColor { palette.codeBackgroundColor }
     var codeTextColor: NSColor { palette.codeTextColor }
     var blockquoteColor: NSColor { palette.blockquoteColor }

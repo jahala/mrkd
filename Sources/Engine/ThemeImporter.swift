@@ -13,7 +13,6 @@ struct ThemePalette {
     let blockquoteColor: NSColor
     let blockquoteBarColor: NSColor
     let headingColor: NSColor
-    let accentColor: NSColor
 }
 
 // MARK: - ThemeImportError
@@ -81,7 +80,6 @@ enum ThemeImporter {
         let codeTextColor = iTermColor(from: plist, key: "Ansi 2 Color") ?? fg
         let blockquoteColor = iTermColor(from: plist, key: "Ansi 8 Color") ?? fg.withAlphaComponent(0.6)
         let headingColor = iTermColor(from: plist, key: "Ansi 5 Color") ?? fg
-        let accentColor = iTermColor(from: plist, key: "Ansi 6 Color") ?? fg
 
         return ThemePalette(
             name: name,
@@ -93,8 +91,7 @@ enum ThemeImporter {
             codeBackgroundColor: codeBg,
             blockquoteColor: blockquoteColor,
             blockquoteBarColor: blockquoteColor,
-            headingColor: headingColor,
-            accentColor: accentColor
+            headingColor: headingColor
         )
     }
 
@@ -147,9 +144,6 @@ enum ThemeImporter {
         let headingColor = findTokenColor(in: tokenColors, matching: ["markup.heading", "entity.name.section"])
             ?? hexColor(colors["terminal.ansiMagenta"] ?? "") ?? fg
 
-        let accentColor = findTokenColor(in: tokenColors, matching: ["keyword", "keyword.control"])
-            ?? hexColor(colors["terminal.ansiCyan"] ?? "") ?? fg
-
         return ThemePalette(
             name: resolvedName,
             isDark: isDark,
@@ -160,8 +154,7 @@ enum ThemeImporter {
             codeBackgroundColor: codeBg,
             blockquoteColor: blockquoteColor,
             blockquoteBarColor: blockquoteColor,
-            headingColor: headingColor,
-            accentColor: accentColor
+            headingColor: headingColor
         )
     }
 

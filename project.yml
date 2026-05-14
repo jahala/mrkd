@@ -22,6 +22,10 @@ targets:
         excludes:
           - "Resources/Info.plist"
           - "Resources/mrkd.entitlements"
+          - "Resources/Fonts"
+      - path: Sources/Resources/Fonts
+        type: folder
+        buildPhase: resources
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
