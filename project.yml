@@ -31,6 +31,7 @@ targets:
           - "Resources/mrkd.entitlements"
           - "Resources/Fonts"
           - "QLExtension"
+          - "Tests"
       - path: Sources/Resources/Fonts
         type: folder
         buildPhase: resources
@@ -54,6 +55,7 @@ targets:
       - target: QLPlugin
         embed: true
 
+
   QLPlugin:
     type: app-extension
     platform: macOS
@@ -64,6 +66,17 @@ targets:
           - "QLExtension.entitlements"
       - path: Sources/Engine
       - path: Sources/App/FontRegistrar.swift
+      # View layer shared with the mrkd target so PreviewViewController
+      # can host a MarkdownViewController directly (TOC sidebar, article
+      # width cap, themed Open button, fragment links — all inherited).
+      - path: Sources/UI/MarkdownViewController.swift
+      - path: Sources/UI/TOCFloatingView.swift
+      - path: Sources/UI/OpenWithButton.swift
+      - path: Sources/UI/ReloadBannerView.swift
+      - path: Sources/UI/TextInteractionHandler.swift
+      - path: Sources/UI/FragmentLinkHandler.swift
+      - path: Sources/UI/FontSizeManager.swift
+      - path: Sources/Platform/FileWatcher.swift
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig

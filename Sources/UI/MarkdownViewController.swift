@@ -283,10 +283,11 @@ final class MarkdownViewController: NSViewController {
     private func notifyInitialRenderComplete() {
         guard !didCompleteInitialRender else { return }
         didCompleteInitialRender = true
-
-        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-            appDelegate.notifyFirstRenderComplete()
-        }
+        // Decoupled from AppDelegate so this controller compiles into the
+        // QL extension too (the extension has no AppDelegate). The main
+        // app's AppDelegate observes this notification and ends its
+        // launch-timing signpost.
+        NotificationCenter.default.post(name: .markdownInitialRenderComplete, object: self)
     }
 
     private func showError(_ message: String) {
@@ -649,4 +650,11 @@ final class CodeBorderLayoutManager: NSLayoutManager {
             }
         }
     }
+}
+
+extension Notification.Name {
+    /// Fired by MarkdownViewController on first complete render. The main
+    /// app's AppDelegate observes this to end its launch-timing signpost.
+    /// The QL extension doesn't observe (no launch signpost there).
+    static let markdownInitialRenderComplete = Notification.Name("MarkdownInitialRenderComplete")
 }

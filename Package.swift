@@ -20,14 +20,25 @@ let package = Package(
                 .product(name: "Highlightr", package: "Highlightr"),
             ],
             path: "Sources",
-            exclude: ["Resources/Info.plist"],
+            exclude: [
+                "Resources/Info.plist",
+                "Resources/mrkd.entitlements",
+                "Tests",
+                "QLExtension",
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v5),
             ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("UniformTypeIdentifiers"),
+                .linkedFramework("Quartz"),
             ]
+        ),
+        .testTarget(
+            name: "mrkdTests",
+            dependencies: ["mrkd"],
+            path: "Sources/Tests"
         ),
     ]
 )
