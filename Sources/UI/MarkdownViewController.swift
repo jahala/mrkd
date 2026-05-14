@@ -127,7 +127,13 @@ final class MarkdownViewController: NSViewController {
             tocView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Self.tocRightMargin),
             tocView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 80),
             tocView.widthAnchor.constraint(equalToConstant: Self.tocWidth),
-            tocView.bottomAnchor.constraint(lessThanOrEqualTo: containerView.bottomAnchor, constant: -80),
+            // Definite bottom — not lessThanOrEqualTo. With a loose bottom
+            // constraint and no intrinsic content size, AutoLayout collapses
+            // the tocView height to fit just the header, leaving the inner
+            // scrollView at 0pt tall. The main app happened to render anyway
+            // because the window's autoresizing chain settled at a tall
+            // value; the QL extension's hosting picks the minimum.
+            tocView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -80),
         ])
 
         self.view = containerView
@@ -257,6 +263,14 @@ final class MarkdownViewController: NSViewController {
                     onFirstScreen: { [weak self] result in
                         guard let self = self else { return }
                         self.textView.textStorage?.setAttributedString(result.attributedString)
+                        // Populate TOC from the first-screen render too —
+                        // for large docs that take a while to fully render,
+                        // this lets the sidebar show headings from the
+                        // visible portion immediately. onComplete will
+                        // replace with the full TOC once the rest renders.
+                        if let storage = self.textView.textStorage {
+                            self.tocView.entries = TOCBuilder.build(from: storage)
+                        }
                         self.applyThemeColors()
                         self.notifyInitialRenderComplete()
                     },
