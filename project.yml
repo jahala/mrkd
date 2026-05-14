@@ -5,6 +5,13 @@ options:
     macOS: "15.0"
   createIntermediateGroups: true
 
+# Xcode 15+ default: Debug builds produce a stub executable that
+# redirects into a .debug.dylib for SwiftUI Previews. App extensions
+# (e.g. our QL plug-in) crash when ExtensionKit tries to load the
+# principal class from the stub. Disable it everywhere.
+settings:
+  ENABLE_DEBUG_DYLIB: NO
+
 packages:
   swift-cmark:
     url: https://github.com/apple/swift-cmark.git
@@ -23,6 +30,7 @@ targets:
           - "Resources/Info.plist"
           - "Resources/mrkd.entitlements"
           - "Resources/Fonts"
+          - "QLExtension"
       - path: Sources/Resources/Fonts
         type: folder
         buildPhase: resources
@@ -36,6 +44,36 @@ targets:
         INFOPLIST_FILE: Sources/Resources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: Sources/Resources/mrkd.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+    dependencies:
+      - package: swift-cmark
+        product: cmark-gfm
+      - package: swift-cmark
+        product: cmark-gfm-extensions
+      - package: Highlightr
+      - target: QLPlugin
+        embed: true
+
+  QLPlugin:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Sources/QLExtension
+        excludes:
+          - "Info.plist"
+          - "QLExtension.entitlements"
+      - path: Sources/Engine
+      - path: Sources/App/FontRegistrar.swift
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
+    settings:
+      base:
+        SWIFT_VERSION: "5"
+        PRODUCT_BUNDLE_IDENTIFIER: com.mrkd.app.QLPlugin
+        INFOPLIST_FILE: Sources/QLExtension/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Sources/QLExtension/QLExtension.entitlements
         ENABLE_HARDENED_RUNTIME: YES
     dependencies:
       - package: swift-cmark

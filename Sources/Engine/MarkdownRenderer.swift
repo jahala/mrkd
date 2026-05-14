@@ -455,10 +455,13 @@ enum MarkdownRenderer {
         theme: Theme
     ) {
         guard let literal = cmark_node_get_literal(node) else { return }
-        // cmark includes a trailing newline in code block literals;
-        // strip it so the NSTextBlock background doesn't show a blank row.
+        // Strip surrounding newlines from cmark's literal so the NSTextBlock
+        // background doesn't show a blank row above or below the content.
+        // Leading newlines are preserved by cmark when the source has a blank
+        // line right after the opening fence.
         var code = String(cString: literal)
         while code.hasSuffix("\n") { code.removeLast() }
+        while code.hasPrefix("\n") { code.removeFirst() }
 
         var language: String? = nil
         if let fence = cmark_node_get_fence_info(node) {
@@ -472,7 +475,7 @@ enum MarkdownRenderer {
         // Language label
         if let lang = language {
             var labelAttrs = baseAttrs
-            labelAttrs[.foregroundColor] = NSColor.tertiaryLabelColor
+            labelAttrs[.foregroundColor] = theme.blockquoteColor
             labelAttrs[.font] = NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
             codeResult.append(NSAttributedString(string: "\(lang)\n", attributes: labelAttrs))
         }
@@ -811,7 +814,10 @@ enum MarkdownRenderer {
         theme: Theme
     ) {
         // Skip if current node is heading (headings manage their own spacing)
-        if currentNodeType == CMARK_NODE_HEADING {
+        // or code block (NSTextBlock's own padding provides internal margin;
+        // paragraphSpacingBefore gets rendered INSIDE the block background,
+        // creating a visible empty band above the first code line).
+        if currentNodeType == CMARK_NODE_HEADING || currentNodeType == CMARK_NODE_CODE_BLOCK {
             return
         }
 

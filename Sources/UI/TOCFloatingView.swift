@@ -12,6 +12,18 @@ final class TOCFloatingView: NSView {
             for (entry, row) in rows {
                 row.isActive = (entry == activeEntry)
             }
+            scrollActiveRowIntoViewIfNeeded()
+        }
+    }
+
+    private func scrollActiveRowIntoViewIfNeeded() {
+        guard let activeEntry, let activeRow = rows[activeEntry] else { return }
+        // Defer to next runloop tick so the row's frame is laid out and the
+        // scrollView's documentView size is current. scrollToVisible takes
+        // care of the math (including flipped coords) and adds the smallest
+        // scroll necessary to put the row in view.
+        DispatchQueue.main.async {
+            activeRow.scrollToVisible(activeRow.bounds)
         }
     }
 
