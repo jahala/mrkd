@@ -2,26 +2,16 @@ import AppKit
 
 final class OpenWithButton: NSView {
 
-    private let visualEffectView: NSVisualEffectView
     private let button: NSButton
     private let fileURL: URL
+    private var themeObserver: NSObjectProtocol?
+    private var isHovered = false
 
-    private var reduceMotionEnabled: Bool {
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    }
+    private var currentTheme: Theme { ThemeManager.shared.currentTheme }
 
     init(fileURL: URL) {
         self.fileURL = fileURL
 
-        // Create visual effect view for blur background
-        visualEffectView = NSVisualEffectView()
-        visualEffectView.material = .hudWindow
-        visualEffectView.state = .active
-        visualEffectView.blendingMode = .behindWindow
-        visualEffectView.wantsLayer = true
-        visualEffectView.layer?.cornerRadius = 4
-
-        // Create button with SF Symbol and title
         button = NSButton()
         button.bezelStyle = .texturedRounded
         button.isBordered = false
@@ -29,82 +19,88 @@ final class OpenWithButton: NSView {
         button.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: "Open")
         button.imagePosition = .imageTrailing
         button.font = NSFont.systemFont(ofSize: 12, weight: .medium)
-        button.contentTintColor = .secondaryLabelColor
 
         super.init(frame: .zero)
 
         setupViews()
-        updateTransparencySettings()
-        observeAccessibilityChanges()
-        alphaValue = 1
+        applyTheme()
+
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.themeDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyTheme()
+        }
     }
 
+    @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        if let observer = themeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     override var acceptsFirstResponder: Bool { true }
 
     private func setupViews() {
         wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.borderWidth = 1
 
-        // Add visual effect view
-        addSubview(visualEffectView)
-        visualEffectView.translatesAutoresizingMaskIntoConstraints = false
-
-        // Add button to visual effect view
-        visualEffectView.addSubview(button)
+        addSubview(button)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.target = self
         button.action = #selector(buttonClicked)
 
         NSLayoutConstraint.activate([
-            // Visual effect view fills the container
-            visualEffectView.topAnchor.constraint(equalTo: topAnchor),
-            visualEffectView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            visualEffectView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            visualEffectView.bottomAnchor.constraint(equalTo: bottomAnchor),
-
-            // Button with horizontal padding
-            button.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
-            button.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor, constant: 10),
-            button.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor, constant: -10),
-            button.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor),
-
-            // Container height
+            button.topAnchor.constraint(equalTo: topAnchor),
+            button.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            button.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            button.bottomAnchor.constraint(equalTo: bottomAnchor),
             heightAnchor.constraint(equalToConstant: 26)
         ])
 
-        // Accessibility
+        addTrackingArea(NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        ))
+
         setAccessibilityRole(.button)
         setAccessibilityLabel("Open")
         setAccessibilityHelp("Opens this file in another application")
         focusRingType = .exterior
     }
 
-    private func observeAccessibilityChanges() {
-        NotificationCenter.default.addObserver(
-            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.updateTransparencySettings()
-            }
-        }
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        applyTheme()
     }
 
-    private func updateTransparencySettings() {
-        if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
-            visualEffectView.state = .inactive
-            visualEffectView.material = .windowBackground
-            wantsLayer = true
-            layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        } else {
-            visualEffectView.state = .active
-            visualEffectView.material = .hudWindow
-            layer?.backgroundColor = nil
-        }
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        applyTheme()
+    }
+
+    private func applyTheme() {
+        let theme = currentTheme
+        let bgColor: NSColor = isHovered
+            ? theme.accentColor.withAlphaComponent(0.15)
+            : theme.codeBackgroundColor
+        let borderColor: NSColor = isHovered
+            ? theme.accentColor.withAlphaComponent(0.5)
+            : theme.blockquoteBarColor
+        let tint: NSColor = isHovered ? theme.accentColor : theme.textColor
+
+        layer?.backgroundColor = bgColor.cgColor
+        layer?.borderColor = borderColor.cgColor
+        button.contentTintColor = tint
     }
 
     // MARK: - Button Action
