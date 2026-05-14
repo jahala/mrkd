@@ -95,7 +95,7 @@
 		E5277AC4E3BF27276C943D7C /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		E8CA6E5F5D620288AAD4FEAE /* MonokaiTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonokaiTheme.swift; sourceTree = "<group>"; };
 		F4D793185EE4AB6D9EE62EB7 /* PreviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewViewController.swift; sourceTree = "<group>"; };
-		"TEMP_E9689F0E-56E5-4F81-892B-404511F85771" /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		"TEMP_B62FE869-FA0F-471E-9CE0-67A33F7B844C" /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -256,10 +256,10 @@
 			path = Pipeline;
 			sourceTree = "<group>";
 		};
-		"TEMP_DED6F70F-94D0-44D1-BE59-B92979CE779F" /* hyderabad */ = {
+		"TEMP_4BE2132D-219C-4D18-A282-BED6BF7DAE03" /* hyderabad */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_E9689F0E-56E5-4F81-892B-404511F85771" /* Signing.xcconfig */,
+				"TEMP_B62FE869-FA0F-471E-9CE0-67A33F7B844C" /* Signing.xcconfig */,
 			);
 			path = hyderabad;
 			sourceTree = "<group>";
@@ -386,7 +386,7 @@
 /* Begin XCBuildConfiguration section */
 		449180D630AD355117B37BC7 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_E9689F0E-56E5-4F81-892B-404511F85771" /* Signing.xcconfig */;
+			baseConfigurationReference = "TEMP_B62FE869-FA0F-471E-9CE0-67A33F7B844C" /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/Resources/mrkd.entitlements;
@@ -525,7 +525,7 @@
 		};
 		FFB1041C2C6C38A5B0A212FD /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_E9689F0E-56E5-4F81-892B-404511F85771" /* Signing.xcconfig */;
+			baseConfigurationReference = "TEMP_B62FE869-FA0F-471E-9CE0-67A33F7B844C" /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/Resources/mrkd.entitlements;
