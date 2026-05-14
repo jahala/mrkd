@@ -2,20 +2,20 @@ import AppKit
 
 final class MarkdownViewController: NSViewController {
 
-    let fileURL: URL
+    let fileURL: URL?
     private var scrollView: NSScrollView!
     private var textView: NSTextView!
     private var markdownContent: String = ""
     private var themeObserver: NSObjectProtocol?
     private var memoryPressureObserver: NSObjectProtocol?
     private let pipeline = RenderPipeline()
-    private var openWithButton: OpenWithButton!
+    private var openWithButton: OpenWithButton?
     private let textInteractionHandler = TextInteractionHandler()
     private var fileWatcher: FileWatcher?
     private var reloadBanner: ReloadBannerView?
     private var didCompleteInitialRender = false
     private var scrollAheadController: ScrollAheadController?
-    private lazy var imageProvider = ImageAttachmentProvider(fileBaseURL: fileURL)
+    private lazy var imageProvider = ImageAttachmentProvider(fileBaseURL: fileURL ?? URL(fileURLWithPath: NSTemporaryDirectory()))
     private var renderGeneration = 0
     private var tocView: TOCFloatingView!
     private var scrollObserver: NSObjectProtocol?
@@ -28,6 +28,12 @@ final class MarkdownViewController: NSViewController {
 
     init(fileURL: URL) {
         self.fileURL = fileURL
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    init(markdownString: String) {
+        self.fileURL = nil
+        self.markdownContent = markdownString
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -97,16 +103,19 @@ final class MarkdownViewController: NSViewController {
 
         // Add Open With button — on the container view, not the scroll view,
         // so it floats on top without interference from NSScrollView's internal layout.
-        openWithButton = OpenWithButton(fileURL: fileURL)
-        containerView.addSubview(openWithButton)
-        openWithButton.translatesAutoresizingMaskIntoConstraints = false
+        if let fileURL {
+            let button = OpenWithButton(fileURL: fileURL)
+            containerView.addSubview(button)
+            button.translatesAutoresizingMaskIntoConstraints = false
 
-        NSLayoutConstraint.activate([
-            openWithButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -12),
-            openWithButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -12)
-        ])
+            NSLayoutConstraint.activate([
+                button.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -12),
+                button.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -12)
+            ])
 
-        openWithButton.alphaValue = 1
+            button.alphaValue = 1
+            openWithButton = button
+        }
 
         tocView = TOCFloatingView()
         containerView.addSubview(tocView)
@@ -128,8 +137,12 @@ final class MarkdownViewController: NSViewController {
         super.viewDidLoad()
         observeThemeChanges()
         observeMemoryPressure()
-        loadMarkdownFile()
-        setupFileWatcher()
+        if fileURL != nil {
+            loadMarkdownFile()
+            setupFileWatcher()
+        } else {
+            renderLoadedContent()
+        }
         setupKeyViewLoop()
         setupScrollAhead()
         setupAccessibilityRotors()
@@ -200,7 +213,20 @@ final class MarkdownViewController: NSViewController {
 
     // MARK: - File Loading
 
+    private func renderLoadedContent() {
+        renderGeneration += 1
+        let theme = ThemeManager.shared.currentTheme
+        pipeline.render(markdown: markdownContent, theme: theme) { [weak self] result in
+            guard let self else { return }
+            self.textView.textStorage?.setAttributedString(result.attributedString)
+            self.applyThemeColors()
+            self.loadDeferredImages()
+            self.notifyInitialRenderComplete()
+        }
+    }
+
     private func loadMarkdownFile() {
+        guard let fileURL else { return }
         renderGeneration += 1
         let readResult = FileReader.read(url: fileURL)
 
@@ -279,6 +305,7 @@ final class MarkdownViewController: NSViewController {
     // MARK: - Keyboard Navigation
 
     private func setupKeyViewLoop() {
+        guard let openWithButton else { return }
         textView.nextKeyView = openWithButton
         openWithButton.nextKeyView = textView
     }
@@ -436,6 +463,7 @@ final class MarkdownViewController: NSViewController {
     // MARK: - File Watching
 
     private func setupFileWatcher() {
+        guard let fileURL else { return }
         let watcher = FileWatcher(url: fileURL)
         watcher.delegate = self
         watcher.start()

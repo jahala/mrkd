@@ -30,14 +30,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         didFinishLaunching = true
 
-        if pendingURLs.isEmpty {
-            // Launched without a file — show Open dialog
-            showOpenPanel()
-        } else {
+        if !pendingURLs.isEmpty {
             for url in pendingURLs {
                 WindowManager.shared.openFile(url)
             }
             pendingURLs.removeAll()
+        } else {
+            showOpenPanel()
         }
     }
 
@@ -59,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Window Lifecycle
 
     func applicationShouldTerminateAfterLastWindowClosed(_ application: NSApplication) -> Bool {
-        return true
+        return false
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -74,6 +73,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func openDocument(_ sender: Any?) {
         showOpenPanel()
+    }
+
+    @objc func openFromClipboard(_ sender: Any?) {
+        WindowManager.shared.openFromClipboard()
     }
 
     // MARK: - Open Panel
@@ -96,8 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 WindowManager.shared.openFile(url)
             }
         } else {
-            // User cancelled — quit since there are no windows
-            NSApplication.shared.terminate(nil)
+            // User cancelled — no action needed, app stays open
         }
     }
 

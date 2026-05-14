@@ -40,7 +40,51 @@ final class WindowManager: NSObject {
         windows.append(window)
     }
 
+    func openFromClipboard() {
+        guard let string = NSPasteboard.general.string(forType: .string), !string.isEmpty else {
+            NSSound.beep()
+            return
+        }
+
+        let window = createClipboardWindow()
+        let viewController = MarkdownViewController(markdownString: string)
+        window.contentViewController = viewController
+
+        let theme = ThemeManager.shared.currentTheme
+        window.setContentSize(WindowSizer.defaultSize(for: theme))
+        centerWindowOnCursorDisplay(window)
+
+        window.makeKeyAndOrderFront(nil)
+        windows.append(window)
+    }
+
     // MARK: - Window Creation
+
+    private func createClipboardWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: .zero,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.styleMask.insert(.fullSizeContentView)
+
+        window.title = "Clipboard"
+        window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        window.tabbingMode = .disallowed
+
+        let theme = ThemeManager.shared.currentTheme
+        window.minSize = WindowSizer.minimumSize(for: theme)
+        window.delegate = self
+
+        return window
+    }
+
+    // MARK: - Window Creation (File)
 
     private func createWindow(for url: URL) -> NSWindow {
         let window = NSWindow(

@@ -99,6 +99,14 @@ enum MenuBuilder {
             keyEquivalent: "o"
         ))
 
+        // Open from Clipboard
+        let clipboardItem = NSMenuItem(
+            title: "New from Clipboard",
+            action: #selector(AppDelegate.openFromClipboard(_:)),
+            keyEquivalent: "n"
+        )
+        fileMenu.addItem(clipboardItem)
+
         // Open Recent
         let recentMenu = NSMenu(title: "Open Recent")
         let clearItem = NSMenuItem(
