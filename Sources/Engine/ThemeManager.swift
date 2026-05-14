@@ -22,14 +22,14 @@ final class ThemeManager: NSObject {
         switch name {
         case "Default":
             return (light: DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: DefaultTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
-        case "Solarized":
-            return (light: SolarizedLight(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: SolarizedDark(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
         case "Monokai":
             return (light: MonokaiTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: MonokaiTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
         case "GitHub":
             return (light: GitHubLight(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: GitHubDark(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
-        case "Dracula":
-            return (light: DraculaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: DraculaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
+        case "Catppuccin Mocha":
+            return (light: CatppuccinMochaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: CatppuccinMochaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
+        case "Snazzy":
+            return (light: SnazzyTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily), dark: SnazzyTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily))
         default:
             return nil
         }
@@ -163,7 +163,7 @@ final class ThemeManager: NSObject {
     // MARK: - Theme Management
 
     func availableThemeNames() -> [String] {
-        let builtIn = ["Default", "Solarized", "Monokai", "GitHub", "Dracula"]
+        let builtIn = ["Default", "GitHub", "Monokai", "Catppuccin Mocha", "Snazzy"]
         return (builtIn + Array(customPalettes.keys)).sorted()
     }
 

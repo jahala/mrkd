@@ -19,6 +19,12 @@ protocol Theme {
     var backgroundColor: NSColor { get }
     var textColor: NSColor { get }
     var linkColor: NSColor { get }
+    /// Signature accent color used for "active" affordances (TOC stripe,
+    /// future bookmark hover, etc). Defaults to `headingColor(level: 1)`
+    /// for consistency: the theme's signature color is whatever it uses
+    /// for headings, period. Themes can still override (e.g. for tinted
+    /// variants) but the rule is "accent = heading" across the board.
+    var accentColor: NSColor { get }
     var codeBackgroundColor: NSColor { get }
     var codeTextColor: NSColor { get }
     var blockquoteColor: NSColor { get }
@@ -26,6 +32,9 @@ protocol Theme {
 
     // Syntax highlighting
     var highlightrTheme: String { get }
+
+    // Smart typography
+    var smartTypographyAllowed: Bool { get }
 
     // Admonitions
     func admonitionColor(type: AdmonitionType) -> NSColor
@@ -52,6 +61,8 @@ extension Theme {
 
     var bodyFontSize: CGFloat { baseFontSize }
     var codeFontSize: CGFloat { baseFontSize - 1 }
+    var smartTypographyAllowed: Bool { true }
+    var accentColor: NSColor { headingColor(level: 1) }
     var codeFontFamily: String { fontFamily }
 
     var highlightrTheme: String {

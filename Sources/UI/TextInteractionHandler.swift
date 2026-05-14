@@ -2,9 +2,36 @@ import AppKit
 
 final class TextInteractionHandler: NSObject, NSTextViewDelegate {
 
+    // Back-reference to the owning view controller — weak to avoid a retain cycle.
+    // Set by MarkdownViewController after it creates this handler.
+    weak var owner: MarkdownViewController?
+
     // MARK: - Link Handling
 
     func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+        // Normalise the link value to a string so both String and URL attributes
+        // are handled uniformly for the fragment check below.
+        let urlString: String?
+        if let s = link as? String { urlString = s }
+        else if let u = link as? URL { urlString = u.absoluteString }
+        else { urlString = nil }
+
+        // Fragment-only links (#some-heading) have no scheme and no host —
+        // detect that first so they never reach NSWorkspace.open.
+        if let urlString,
+           let components = URLComponents(string: urlString),
+           components.scheme == nil,
+           let fragment = components.fragment,
+           !fragment.isEmpty {
+            if let owner = owner,
+               let entry = FragmentLinkHandler.resolve(fragment: fragment, in: owner.tocEntries) {
+                owner.scrollToHeading(entry)
+                return true  // consumed — NSTextView must not attempt default handling
+            }
+            return false  // fragment present but no matching heading; fall through
+        }
+
+        // Not a fragment link — hand off to the external-URL handler.
         guard let url = link as? URL else {
             if let urlString = link as? String, let url = URL(string: urlString) {
                 return openLink(url)

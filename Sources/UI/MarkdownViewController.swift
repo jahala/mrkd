@@ -17,6 +17,14 @@ final class MarkdownViewController: NSViewController {
     private var scrollAheadController: ScrollAheadController?
     private lazy var imageProvider = ImageAttachmentProvider(fileBaseURL: fileURL)
     private var renderGeneration = 0
+    private var tocView: TOCFloatingView!
+    private var scrollObserver: NSObjectProtocol?
+    private var activeHeadingWork: DispatchWorkItem?
+    private static let articleMaxWidth: CGFloat = 800
+    private static let articleMinHorizontalPadding: CGFloat = 60
+    private static let tocWidth: CGFloat = 200
+    private static let tocRightMargin: CGFloat = 24
+    private static let tocVisibilityThreshold: CGFloat = 1280
 
     init(fileURL: URL) {
         self.fileURL = fileURL
@@ -35,6 +43,10 @@ final class MarkdownViewController: NSViewController {
         if let observer = memoryPressureObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let observer = scrollObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        activeHeadingWork?.cancel()
         pipeline.cancel()
         fileWatcher?.stop()
     }
@@ -58,7 +70,7 @@ final class MarkdownViewController: NSViewController {
         layoutManager.allowsNonContiguousLayout = true
         textStorage.addLayoutManager(layoutManager)
         let textContainer = NSTextContainer()
-        textContainer.widthTracksTextView = true
+        textContainer.widthTracksTextView = false
         layoutManager.addTextContainer(textContainer)
         textView = NSTextView(frame: .zero, textContainer: textContainer)
         textView.isEditable = false
@@ -77,6 +89,7 @@ final class MarkdownViewController: NSViewController {
         textView.isHorizontallyResizable = false
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.delegate = textInteractionHandler
+        textInteractionHandler.owner = self
 
         scrollView.documentView = textView
         scrollView.frame = containerView.bounds
@@ -95,6 +108,19 @@ final class MarkdownViewController: NSViewController {
 
         openWithButton.alphaValue = 1
 
+        tocView = TOCFloatingView()
+        containerView.addSubview(tocView)
+        tocView.onSelect = { [weak self] entry in
+            self?.scrollToHeading(entry)
+        }
+
+        NSLayoutConstraint.activate([
+            tocView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Self.tocRightMargin),
+            tocView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 80),
+            tocView.widthAnchor.constraint(equalToConstant: Self.tocWidth),
+            tocView.bottomAnchor.constraint(lessThanOrEqualTo: containerView.bottomAnchor, constant: -80),
+        ])
+
         self.view = containerView
     }
 
@@ -107,6 +133,19 @@ final class MarkdownViewController: NSViewController {
         setupKeyViewLoop()
         setupScrollAhead()
         setupAccessibilityRotors()
+        setupActiveHeadingSync()
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        guard let container = textView.textContainer else { return }
+        let windowW = view.bounds.width
+        let articleW = min(Self.articleMaxWidth, windowW - 2 * Self.articleMinHorizontalPadding)
+        let sideInset = max(Self.articleMinHorizontalPadding, (windowW - articleW) / 2)
+        container.containerSize.width = articleW
+        textView.textContainerInset = NSSize(width: sideInset, height: 40)
+        textView.frame.size.width = windowW
+        tocView.isHidden = view.bounds.width < Self.tocVisibilityThreshold
     }
 
     // MARK: - Theme Integration
@@ -148,10 +187,14 @@ final class MarkdownViewController: NSViewController {
         pipeline.render(markdown: markdownContent, theme: theme) { [weak self] result in
             guard let self = self else { return }
             self.textView.textStorage?.setAttributedString(result.attributedString)
+            if let storage = self.textView.textStorage {
+                self.tocView.entries = TOCBuilder.build(from: storage)
+            }
             self.applyThemeColors()
             self.loadDeferredImages()
             // Restore scroll position
             self.scrollView.contentView.scroll(to: scrollPosition)
+            self.scheduleActiveHeadingUpdate()
         }
     }
 
@@ -172,9 +215,13 @@ final class MarkdownViewController: NSViewController {
                 pipeline.render(markdown: content, theme: theme) { [weak self] result in
                     guard let self = self else { return }
                     self.textView.textStorage?.setAttributedString(result.attributedString)
+                    if let storage = self.textView.textStorage {
+                        self.tocView.entries = TOCBuilder.build(from: storage)
+                    }
                     self.applyThemeColors()
                     self.loadDeferredImages()
                     self.notifyInitialRenderComplete()
+                    self.scheduleActiveHeadingUpdate()
                 }
             } else {
                 // Tier 2+: progressive render — first screenful fast, then complete
@@ -191,9 +238,13 @@ final class MarkdownViewController: NSViewController {
                         guard let self = self else { return }
                         let scrollPosition = self.scrollView.contentView.bounds.origin
                         self.textView.textStorage?.setAttributedString(result.attributedString)
+                        if let storage = self.textView.textStorage {
+                            self.tocView.entries = TOCBuilder.build(from: storage)
+                        }
                         self.scrollView.contentView.scroll(to: scrollPosition)
                         self.loadDeferredImages()
                         MemoryMonitor.shared.checkAndLog()
+                        self.scheduleActiveHeadingUpdate()
                     }
                 )
             }
@@ -237,6 +288,70 @@ final class MarkdownViewController: NSViewController {
     private func setupAccessibilityRotors() {
         let headingRotor = NSAccessibilityCustomRotor(label: "Headings", itemSearchDelegate: self)
         textView.setAccessibilityCustomRotors([headingRotor])
+    }
+
+    // MARK: - Active Heading Sync
+
+    private func setupActiveHeadingSync() {
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        scrollObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView,
+            queue: .main
+        ) { [weak self] _ in
+            self?.scheduleActiveHeadingUpdate()
+        }
+    }
+
+    private func scheduleActiveHeadingUpdate() {
+        activeHeadingWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.updateActiveHeading()
+        }
+        activeHeadingWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
+    }
+
+    private func updateActiveHeading() {
+        let entries = tocView?.entries ?? []
+        guard !entries.isEmpty,
+              let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer else {
+            tocView?.activeEntry = nil
+            return
+        }
+        let viewportTop = scrollView.contentView.bounds.origin.y
+        let viewportHeight = scrollView.contentView.bounds.height
+        let inset = textView.textContainerInset.height
+
+        // Trigger normally sits 25% from the viewport top — matches the
+        // 20% landing target in scrollToHeading so a clicked entry stays
+        // highlighted. As we approach the doc bottom, the trigger slides
+        // smoothly down toward the viewport bottom: short trailing
+        // sections can't be pulled past a fixed top-anchored line, so
+        // without this slide they never activate. Linear interpolation
+        // over the last viewport-height of remaining scroll keeps the
+        // transition continuous — no jumps when scrolling away from
+        // the absolute bottom.
+        let maxScrollY = max(0, textView.frame.height - viewportHeight)
+        let remaining = max(0, maxScrollY - viewportTop)
+        let zoneProgress = max(0.0, min(1.0, 1.0 - remaining / max(1, viewportHeight)))
+        let standardOffset = viewportHeight * 0.25
+        let triggerY = viewportTop + standardOffset + (viewportHeight - standardOffset) * zoneProgress
+
+        var lastAbove: TOCEntry?
+        for entry in entries {
+            let range = NSRange(location: entry.location, length: 1)
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            let headingY = rect.origin.y + inset
+            if headingY < triggerY {
+                lastAbove = entry
+            } else {
+                break
+            }
+        }
+        tocView?.activeEntry = lastAbove
     }
 
     // MARK: - Scroll Ahead
@@ -292,6 +407,30 @@ final class MarkdownViewController: NSViewController {
 
         let scale = maxWidth / imageSize.width
         return NSSize(width: maxWidth, height: imageSize.height * scale)
+    }
+
+    // MARK: - TOC Navigation
+
+    /// Exposes the current TOC entries so that TextInteractionHandler can
+    /// resolve in-document fragment links without holding a strong reference
+    /// to the tocView directly.
+    var tocEntries: [TOCEntry] {
+        tocView?.entries ?? []
+    }
+
+    func scrollToHeading(_ entry: TOCEntry) {
+        guard let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer else { return }
+        let range = NSRange(location: entry.location, length: 1)
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        layoutManager.ensureLayout(forCharacterRange: range)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        let inset = textView.textContainerInset
+        let viewportHeight = scrollView.contentView.bounds.height
+        let targetY = rect.origin.y + inset.height - viewportHeight * 0.2
+        let clampedY = max(0, targetY)
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: clampedY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
     // MARK: - File Watching

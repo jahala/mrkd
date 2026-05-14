@@ -116,14 +116,14 @@ class PreviewViewController: NSViewController, QLPreviewingController {
 
     private func makeTheme(named name: String, isDark: Bool, fontSize: CGFloat, fontFamily: String, codeFontFamily: String) -> Theme {
         switch name {
-        case "Solarized":
-            return isDark ? SolarizedDark(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily) : SolarizedLight(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
         case "Monokai":
             return MonokaiTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
         case "GitHub":
             return isDark ? GitHubDark(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily) : GitHubLight(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
-        case "Dracula":
-            return DraculaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
+        case "Catppuccin Mocha":
+            return CatppuccinMochaTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
+        case "Snazzy":
+            return SnazzyTheme(baseFontSize: fontSize, fontFamily: fontFamily, codeFontFamily: codeFontFamily)
         default:
             // Check for a custom imported theme in App Support
             if let palette = loadCustomPalette(named: name) {

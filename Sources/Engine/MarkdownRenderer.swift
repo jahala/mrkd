@@ -23,9 +23,13 @@ enum MarkdownRenderer {
     static func render(_ markdown: String, theme: Theme = DefaultTheme()) -> NSMutableAttributedString {
         registerGFMExtensions()
 
+        let source = theme.smartTypographyAllowed
+            ? BlockSplitter.split(markdown).map(smartenMarkdown).joined(separator: "\n\n")
+            : markdown
+
         let options = CMARK_OPT_DEFAULT | CMARK_OPT_UNSAFE
         guard let parser = cmark_parser_new(options) else {
-            return NSMutableAttributedString(string: markdown, attributes: theme.bodyAttributes)
+            return NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
         }
         defer { cmark_parser_free(parser) }
 
@@ -37,9 +41,9 @@ enum MarkdownRenderer {
             }
         }
 
-        cmark_parser_feed(parser, markdown, markdown.utf8.count)
+        cmark_parser_feed(parser, source, source.utf8.count)
         guard let doc = cmark_parser_finish(parser) else {
-            return NSMutableAttributedString(string: markdown, attributes: theme.bodyAttributes)
+            return NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
         }
         defer { cmark_node_free(doc) }
 
@@ -970,9 +974,13 @@ enum MarkdownRenderer {
     ) -> NSMutableAttributedString {
         registerGFMExtensions()
 
+        let source = theme.smartTypographyAllowed
+            ? BlockSplitter.split(markdown).map(smartenMarkdown).joined(separator: "\n\n")
+            : markdown
+
         let options = CMARK_OPT_DEFAULT | CMARK_OPT_UNSAFE
         guard let parser = cmark_parser_new(options) else {
-            let fallback = NSMutableAttributedString(string: markdown, attributes: theme.bodyAttributes)
+            let fallback = NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
             onFirstScreen(fallback)
             return fallback
         }
@@ -985,9 +993,9 @@ enum MarkdownRenderer {
             }
         }
 
-        cmark_parser_feed(parser, markdown, markdown.utf8.count)
+        cmark_parser_feed(parser, source, source.utf8.count)
         guard let doc = cmark_parser_finish(parser) else {
-            let fallback = NSMutableAttributedString(string: markdown, attributes: theme.bodyAttributes)
+            let fallback = NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
             onFirstScreen(fallback)
             return fallback
         }
