@@ -24,11 +24,13 @@ enum MermaidThemePayload {
     static func json(for theme: Theme) -> String {
         let payload: [String: Any] = [
             "appearance": theme.isDark ? "dark" : "light",
-            // resvg matches fonts against the system font database. mrkd's
-            // typefaces are registered into this process only, so a document
-            // set in Inter cannot hand Inter to the renderer; naming a
-            // generic family after it makes the fallback the system sans
-            // rather than whichever face merman happens to reach first.
+            // The document's own body font. The renderer is handed mrkd's
+            // bundled font files alongside this payload (`BundledFonts`), so
+            // a family it ships — Inter, Literata, Geist — resolves to the
+            // same face the prose is set in. `sans-serif` after it for the
+            // families it does not: a custom theme can name anything, and a
+            // named generic falls back to the system sans rather than to
+            // whichever face the database happens to reach first.
             "fontFamily": "\(theme.fontFamily), sans-serif",
             "fontSize": "\(Int(theme.bodyFontSize.rounded()))px",
             "roles": roles(for: theme),

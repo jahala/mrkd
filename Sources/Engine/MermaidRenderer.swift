@@ -16,6 +16,10 @@ enum MermaidRenderFailure: Error, Equatable {
     case renderFailed
     /// The renderer panicked and the unwind was caught at the C boundary.
     case rendererPanicked
+    /// A bundled font file could not be read as a font. Distinct because it
+    /// is a broken build rather than a broken diagram: every diagram in the
+    /// document fails, and the reason is in the app bundle, not the markdown.
+    case fontLoadFailed
     /// Bytes came back that are not a decodable image.
     case undecodableImage
     /// A status code this version of the shim does not know about.
@@ -27,6 +31,7 @@ enum MermaidRenderFailure: Error, Equatable {
         case MERMAID_ERR_NO_DIAGRAM: self = .noDiagram
         case MERMAID_ERR_RENDER: self = .renderFailed
         case MERMAID_ERR_PANIC: self = .rendererPanicked
+        case MERMAID_ERR_FONT: self = .fontLoadFailed
         default: self = .unknown(status)
         }
     }
@@ -47,14 +52,18 @@ enum MermaidRenderFailure: Error, Equatable {
 enum MermaidRenderer {
 
     /// Rasterises `source` at `scale` device pixels per point, in the colours
-    /// described by `themeJSON` (see `MermaidThemePayload`).
+    /// described by `themeJSON` (see `MermaidThemePayload`) and the fonts at
+    /// `fontURLs` — normally `BundledFonts.urls`, mrkd's own typefaces, which
+    /// the rasteriser cannot find for itself because they live in the app
+    /// bundle rather than in a system font directory.
     ///
     /// Safe to call from any thread: the library builds a renderer per call
-    /// and the one piece of shared state under it — merman's system font
-    /// database — is behind its own lock.
+    /// and the one piece of shared state under it — the font database built
+    /// from `fontURLs` and the system's — is behind its own lock.
     static func image(
         source: String,
         themeJSON: String,
+        fontURLs: [URL],
         scale: CGFloat
     ) -> Result<NSImage, MermaidRenderFailure> {
         // An empty source is the one case worth catching here: merman would
@@ -65,11 +74,22 @@ enum MermaidRenderer {
         // branch no test could tell apart from the one below it.
         guard !source.isEmpty else { return .failure(.invalidInput) }
 
+        // The font list crosses as JSON rather than as a C array of strings:
+        // one NUL-terminated argument, one lifetime, and the same decoder the
+        // theme payload already goes through on the other side.
+        guard let fontData = try? JSONSerialization.data(withJSONObject: fontURLs.map(\.path)),
+              let fontPathsJSON = String(data: fontData, encoding: .utf8)
+        else { return .failure(.invalidInput) }
+
         var bytes: UnsafeMutablePointer<UInt8>?
         var length = 0
         let status = source.withCString { source in
             themeJSON.withCString { themeJSON in
-                mermaid_render_png(source, themeJSON, Float(scale), &bytes, &length)
+                fontPathsJSON.withCString { fontPathsJSON in
+                    mermaid_render_png(
+                        source, themeJSON, fontPathsJSON, Float(scale), &bytes, &length
+                    )
+                }
             }
         }
 

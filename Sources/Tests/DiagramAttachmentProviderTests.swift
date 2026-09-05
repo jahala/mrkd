@@ -29,9 +29,11 @@ final class DiagramAttachmentProviderTests: XCTestCase {
         _ source: String,
         theme: Theme = CatppuccinMochaTheme(),
         scale: CGFloat = 2,
+        on provider: DiagramAttachmentProvider? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> (image: NSImage?, wasSynchronous: Bool) {
+        let provider = provider ?? self.provider!
         var result: NSImage?
         var landed = false
         provider.image(for: source, theme: theme, scale: scale) { image in
@@ -126,5 +128,35 @@ final class DiagramAttachmentProviderTests: XCTestCase {
 
         XCTAssertTrue(second.wasSynchronous, "a known-bad diagram was parsed a second time")
         XCTAssertNil(second.image)
+    }
+
+    // MARK: - Fonts
+
+    /// The provider is the only thing between the view controller and the
+    /// renderer, so it is where mrkd's bundled typefaces either reach a
+    /// diagram or quietly do not. Same source, same theme, two providers —
+    /// one holding the font files and one holding none.
+    ///
+    /// Inter because it is one mrkd ships and a machine is unlikely to have
+    /// separately installed: a family the system already provides would
+    /// resolve either way and prove nothing.
+    func testTheProvidersFontsReachTheDiagram() throws {
+        let theme = CatppuccinMochaTheme(fontFamily: "Inter")
+        let withFonts = DiagramAttachmentProvider(fontURLs: Self.repositoryFontURLs)
+        let withoutFonts = DiagramAttachmentProvider(fontURLs: [])
+
+        let drawn = try XCTUnwrap(resolve(flowchart, theme: theme, on: withFonts).image)
+        let fallback = try XCTUnwrap(resolve(flowchart, theme: theme, on: withoutFonts).image)
+
+        func pixels(_ image: NSImage) throws -> Data {
+            try XCTUnwrap(
+                (image.representations.first as? NSBitmapImageRep)?
+                    .representation(using: .png, properties: [:])
+            )
+        }
+        XCTAssertNotEqual(
+            try pixels(drawn), try pixels(fallback),
+            "the provider's font list never reached the renderer"
+        )
     }
 }

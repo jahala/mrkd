@@ -28,8 +28,13 @@ final class DiagramAttachmentProvider {
     /// flight at once for no gain the reader can see.
     private let renderQueue = DispatchQueue(label: "com.mrkd.mermaid", qos: .userInitiated)
     private var pressureObserver: NSObjectProtocol?
+    /// mrkd's own typefaces, handed to the renderer on every call because
+    /// resvg cannot find fonts inside an app bundle for itself. Injectable so
+    /// a test can prove a diagram really is drawn in them.
+    private let fontURLs: [URL]
 
-    init() {
+    init(fontURLs: [URL] = BundledFonts.urls) {
+        self.fontURLs = fontURLs
         cache.countLimit = 128
 
         pressureObserver = NotificationCenter.default.addObserver(
@@ -74,10 +79,11 @@ final class DiagramAttachmentProvider {
             return
         }
 
-        renderQueue.async { [weak self] in
+        renderQueue.async { [weak self, fontURLs] in
             let rendered = try? MermaidRenderer.image(
                 source: source,
                 themeJSON: themeJSON,
+                fontURLs: fontURLs,
                 scale: scale
             ).get()
 

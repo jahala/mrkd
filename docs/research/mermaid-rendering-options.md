@@ -58,3 +58,44 @@ Whether to take the size at all. The alternative is to render mermaid blocks as 
 ## Side finding
 
 [SwaTex](https://github.com/PhraseHQ/SwaTex) (MIT, ★222) is a pure-Swift KaTeX-coverage LaTeX math renderer — "no JavaScript, no WebView, no DOM". If math support is ever wanted, it is a Swift package with no Rust boundary and no size cliff. Much cheaper than the mermaid path.
+
+## What shipped, and where this document is now wrong
+
+Updated 2026-09-05, after the feature was built.
+
+**The helper process in "Recommended architecture" is not what shipped.** The
+Quick Look extension is sandboxed and cannot spawn one, and it shares
+`MarkdownViewController` with the app — a helper would have worked in the app
+and silently not in previews. merman is linked instead, as a C ABI cdylib
+(`rust/mermaid-shim`) embedded once in `Contents/Frameworks` and used by both.
+Every entry point is wrapped in `catch_unwind` so a renderer panic returns an
+error code rather than killing the host.
+
+**merman is pinned to `=0.7.0`, its latest stable release**, rather than to the
+0.8 alpha line this document benchmarked. The APIs mrkd needs are all there in
+0.7's free-function form: `HostThemeProfile`/`HostThemeRoles` carry the same
+theme roles as 0.8's `HostTheme`, and `SvgPipeline::resvg_safe` is unchanged.
+Two things 0.8 gave for free had to be written here instead: role *ids*
+(`canvas`, `surface-alt`, …), which 0.8 parsed with `ThemeRole::from_id` and
+0.7 exposes only as struct fields, and validation of the CSS values those roles
+carry. Both are ported from merman's own source.
+
+**merman's rasteriser is not used at all.** It resolves fonts through a
+`fontdb` database it builds privately from the system font directories —
+`/Library/Fonts`, `/System/Library/Fonts`, `~/Library/Fonts` — and mrkd's
+typefaces live inside its own bundle, where `load_system_fonts` will never look.
+`RasterOptions` has no font field in 0.7 or 0.8 and `shared_system_fontdb` is
+private, so there is no way to hand it the list. The shim therefore asks merman
+only for the resvg-safe SVG and rasterises it itself, against a database holding
+the system fonts *and* the bundle's. That is the whole reason a diagram can be
+set in Literata when the prose is.
+
+Measured after the change, on the same machine: **9.2 MB** stripped (down from
+11.7 MB — dropping merman's `raster` feature drops a JPEG encoder and a PDF
+writer, and resvg without `raster-images` drops the GIF/WebP/JPEG decoders),
+**229 ms** for the first diagram in a process and **15 ms** for every one after,
+against 22 ms before.
+
+Still open from the original investigation: `mermaid-rs-renderer` was never
+benchmarked, and the size question — whether to take ~9 MB for diagrams at all
+— remains a positioning decision rather than an engineering one.

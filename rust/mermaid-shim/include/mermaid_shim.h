@@ -17,14 +17,22 @@
 #define MERMAID_ERR_NO_DIAGRAM 2
 #define MERMAID_ERR_RENDER 3
 #define MERMAID_ERR_PANIC 4
+#define MERMAID_ERR_FONT 5
 
 /*
  * Renders Mermaid `source` to PNG bytes at `scale` device pixels per point,
- * in the colours described by `theme_json`.
+ * in the colours described by `theme_json` and the fonts named by
+ * `font_paths_json`.
  *
  * `theme_json` is an object with "appearance" ("light" or "dark"), optional
  * "fontFamily" and "fontSize", and a "roles" map of merman theme-role ids to
  * CSS colours. Swift builds it in MermaidThemePayload.
+ *
+ * `font_paths_json` is an array of font file paths, loaded alongside the
+ * system fonts so a diagram can be set in a typeface that lives inside the
+ * app bundle. Swift builds it from BundledFonts. `[]` is valid and means
+ * system fonts only. The database is built once and reused, so passing the
+ * same list every call costs nothing after the first.
  *
  * On MERMAID_OK the caller owns *out_bytes and must release it with
  * mermaid_free_png. On every other result *out_bytes is NULL and *out_len
@@ -33,6 +41,7 @@
  */
 int32_t mermaid_render_png(const char *source,
                            const char *theme_json,
+                           const char *font_paths_json,
                            float scale,
                            uint8_t **out_bytes,
                            size_t *out_len);

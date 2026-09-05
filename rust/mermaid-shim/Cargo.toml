@@ -14,20 +14,36 @@ name = "mermaid_shim"
 crate-type = ["cdylib"]
 
 [dependencies]
-# Pinned exactly: this is a pre-1.0 alpha. Cargo.lock is committed.
-merman = { version = "=0.8.0-alpha.6", default-features = false, features = [
-    "svg",
-    "png",
+# Pinned exactly, and Cargo.lock is committed: merman is pre-1.0 and a silent
+# dependency bump is exactly what this pin exists to prevent. 0.7.0 is the
+# latest stable release; everything past it is the 0.8 alpha line.
+#
+# `render` only — not `raster`. merman's own PNG path builds its font database
+# privately from the system font directories, which cannot see the typefaces
+# inside mrkd's bundle, and exposes no hook for adding them. The raster step
+# therefore lives in this crate, over the resvg-safe SVG merman hands back.
+merman = { version = "=0.7.0", default-features = false, features = ["render"] }
+# The rasteriser, direct rather than through merman. `usvg` and `tiny-skia`
+# come from resvg's own re-exports so the three versions cannot drift apart.
+# Without `raster-images`: the only images a Mermaid SVG carries are data
+# URLs, and the GIF, WebP and JPEG decoders that feature pulls in are weight
+# with nothing behind it.
+resvg = { version = "0.47", default-features = false, features = [
+    "text",
+    "system-fonts",
+    "memmap-fonts",
 ] }
-# Already in merman's own tree, so these cost nothing in binary size. They
-# decode the theme payload Swift builds from the active mrkd theme.
+# Decodes the theme payload and the font list Swift builds.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
-# Already in the tree via resvg; used only to inflate a PNG in the
-# transparency test.
+# Both already in the tree under tiny-skia's PNG encoder, so neither adds
+# anything to the shipped library. `miniz_oxide` inflates one scanline for
+# the transparency test; `png` decodes a whole image for the tests that check
+# a theme colour actually landed on the pixels.
 miniz_oxide = "0.8"
+png = "0.17"
 
 # Measured on this machine (see docs/research/mermaid-rendering-options.md):
 #   opt-level = 3   everywhere      -> 11.7 MB, ~7 ms warm
@@ -35,6 +51,14 @@ miniz_oxide = "0.8"
 #   opt-level = "z" everywhere      ->  6.6 MB, ~1100 ms warm (rejected)
 # The overrides matter: size-optimising the rasteriser is what destroys
 # render performance, so tiny-skia/resvg/usvg/png/miniz_oxide stay at 3.
+#
+# The library this profile now produces is 9,202,640 bytes, against 11,802,192
+# when merman did the rasterising: `render` alone drops the JPEG encoder and
+# the PDF writer that came with its `raster` feature, and resvg without
+# `raster-images` drops the GIF, WebP and JPEG decoders. A 2.6 MB saving for
+# work that had to move here anyway. Rendering a four-node flowchart at 2x:
+# 229 ms for the first (the font database) and 15 ms for every one after,
+# against 22 ms warm before.
 [profile.release]
 opt-level = "s"
 lto = true

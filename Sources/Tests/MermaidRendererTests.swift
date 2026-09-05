@@ -29,9 +29,28 @@ final class MermaidRendererTests: XCTestCase {
     private func render(
         _ source: String,
         theme: String? = nil,
+        fonts: [URL]? = nil,
         scale: CGFloat = 2
     ) -> Result<NSImage, MermaidRenderFailure> {
-        MermaidRenderer.image(source: source, themeJSON: theme ?? dark(), scale: scale)
+        MermaidRenderer.image(
+            source: source,
+            themeJSON: theme ?? dark(),
+            fontURLs: fonts ?? Self.repositoryFontURLs,
+            scale: scale
+        )
+    }
+
+    /// The dark theme in a chosen body font, as the payload the app builds.
+    private func theme(font: String) -> String {
+        MermaidThemePayload.json(for: CatppuccinMochaTheme(fontFamily: font))
+    }
+
+    /// The PNG bytes of a rendered diagram, for comparing two renders.
+    private func pixels(_ image: NSImage) throws -> Data {
+        try XCTUnwrap(
+            (image.representations.first as? NSBitmapImageRep)?
+                .representation(using: .png, properties: [:])
+        )
     }
 
     // MARK: - Real diagrams
@@ -72,16 +91,57 @@ final class MermaidRendererTests: XCTestCase {
         let inDark = try render(flowchart, theme: dark()).get()
         let inLight = try render(flowchart, theme: light()).get()
 
-        let darkBytes = try XCTUnwrap(
-            (inDark.representations.first as? NSBitmapImageRep)?
-                .representation(using: .png, properties: [:])
+        XCTAssertNotEqual(
+            try pixels(inDark), try pixels(inLight),
+            "the theme never reached the renderer"
         )
-        let lightBytes = try XCTUnwrap(
-            (inLight.representations.first as? NSBitmapImageRep)?
-                .representation(using: .png, properties: [:])
-        )
+    }
 
-        XCTAssertNotEqual(darkBytes, lightBytes, "the theme never reached the renderer")
+    // MARK: - Fonts
+
+    /// A diagram is part of the prose, so it has to be set in the same face.
+    /// The document's body font is the only thing that differs between these
+    /// two renders, and the pixels have to differ with it.
+    ///
+    /// Two families mrkd ships and the system does not, so that a machine
+    /// with one of them separately installed cannot make this pass for the
+    /// wrong reason: without the bundled files both fall back to the same
+    /// system sans and the bytes match.
+    func testTheDocumentsBodyFontChangesTheGlyphs() throws {
+        let inInter = try render(flowchart, theme: theme(font: "Inter")).get()
+        let inGeist = try render(flowchart, theme: theme(font: "Geist")).get()
+
+        XCTAssertEqual(
+            inInter.size.width, inGeist.size.width, accuracy: 1,
+            "the two renders are different sizes, so this compares more than the glyphs"
+        )
+        XCTAssertNotEqual(
+            try pixels(inInter), try pixels(inGeist),
+            "Inter and Geist drew the same pixels — the theme's font never reached the glyphs"
+        )
+    }
+
+    /// The same theme, rendered with and without mrkd's own font files.
+    /// Without them Inter — the app's own body font — is not a face the
+    /// rasteriser has ever heard of, and it draws a system sans instead.
+    func testWithoutTheBundledFilesTheBodyFontCannotBeUsed() throws {
+        let withFonts = try render(flowchart, theme: theme(font: "Inter")).get()
+        let withoutFonts = try render(flowchart, theme: theme(font: "Inter"), fonts: []).get()
+
+        XCTAssertNotEqual(
+            try pixels(withFonts), try pixels(withoutFonts),
+            "handing the renderer mrkd's fonts made no difference to the pixels"
+        )
+    }
+
+    /// A file in the list that is not a font is a broken build, and it says
+    /// so rather than quietly drawing every diagram in a fallback face.
+    func testAFileThatIsNotAFontIsReported() {
+        let notAFont = URL(fileURLWithPath: #filePath)
+
+        XCTAssertEqual(
+            render(flowchart, fonts: [notAFont]).failureValue, .fontLoadFailed
+        )
     }
 
     /// The diagram sits on the document, not on a card. An opaque background
@@ -167,6 +227,7 @@ final class MermaidRendererTests: XCTestCase {
         XCTAssertEqual(MermaidRenderFailure(status: MERMAID_ERR_NO_DIAGRAM), .noDiagram)
         XCTAssertEqual(MermaidRenderFailure(status: MERMAID_ERR_RENDER), .renderFailed)
         XCTAssertEqual(MermaidRenderFailure(status: MERMAID_ERR_PANIC), .rendererPanicked)
+        XCTAssertEqual(MermaidRenderFailure(status: MERMAID_ERR_FONT), .fontLoadFailed)
         XCTAssertEqual(MermaidRenderFailure(status: 99), .unknown(99))
     }
 

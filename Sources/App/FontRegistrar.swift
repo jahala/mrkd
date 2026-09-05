@@ -4,16 +4,10 @@ import CoreText
 enum FontRegistrar {
 
     static func registerBundledFonts() {
-        guard let fontsURL = Bundle.main.resourceURL?.appendingPathComponent("Fonts") else { return }
-
-        let fileManager = FileManager.default
-        guard let fontFiles = try? fileManager.contentsOfDirectory(
-            at: fontsURL,
-            includingPropertiesForKeys: nil,
-            options: .skipsHiddenFiles
-        ) else { return }
-
-        for fontFile in fontFiles where fontFile.pathExtension.lowercased() == "ttf" {
+        // The same list the Mermaid renderer loads into resvg's font
+        // database. One home for it: a document set in Literata whose
+        // diagrams come out in Helvetica is what two lists would look like.
+        for fontFile in BundledFonts.urls {
             var error: Unmanaged<CFError>?
             let success = CTFontManagerRegisterFontsForURL(fontFile as CFURL, .process, &error)
             if !success, let err = error?.takeRetainedValue() {
