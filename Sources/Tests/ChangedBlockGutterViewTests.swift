@@ -85,15 +85,14 @@ final class ChangedBlockGutterViewTests: XCTestCase {
         view.flash([barRect], color: .systemPink)
         XCTAssertFalse(view.accentBars.isEmpty, "the accent should be up immediately")
 
-        let faded = expectation(description: "accent faded away")
-        let poll = Timer(timeInterval: 0.05, repeats: true) { timer in
-            if view.accentBars.isEmpty {
-                timer.invalidate()
-                faded.fulfill()
-            }
+        // Real elapsed time, no injected clock. Spinning the run loop
+        // keeps this on the main actor — a Timer's closure is @Sendable and
+        // cannot touch the view without tripping concurrency checking, and
+        // which Swift version tolerates that has moved under us before.
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline && !view.accentBars.isEmpty {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
         }
-        RunLoop.main.add(poll, forMode: .common)
-        wait(for: [faded], timeout: 5)
-        poll.invalidate()
+        XCTAssertTrue(view.accentBars.isEmpty, "the accent should take itself away")
     }
 }
