@@ -104,14 +104,32 @@ jobs:
           ditto -c -k --keepParent mrkd.app mrkd-unsigned.zip
 
           # Capture submission ID so we can fetch the log if Apple rejects.
+          # The status is taken by hand because the job runs under `bash -e`:
+          # a failing command inside $( ) aborts the step immediately, which
+          # threw away notarytool's own explanation of what went wrong and
+          # left a two-second failure with no output at all.
+          set +e
           SUBMIT_OUTPUT=$(xcrun notarytool submit mrkd-unsigned.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait 2>&1)
+          SUBMIT_STATUS=$?
+          set -e
           echo "$SUBMIT_OUTPUT"
 
           SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | awk '/id:/ { print $2; exit }')
+
+          if [ "$SUBMIT_STATUS" -ne 0 ]; then
+            echo "::error::notarytool exited $SUBMIT_STATUS -- see its output above." >&2
+            if [ -n "$SUBMISSION_ID" ]; then
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_APP_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" || true
+            fi
+            exit 1
+          fi
 
           if echo "$SUBMIT_OUTPUT" | grep -q "status: Invalid"; then
             echo "::error::Notarization rejected. Fetching log…"
