@@ -21,9 +21,21 @@ final class WindowManager: NSObject {
         }
     }
 
+    /// Any mrkd content window — documents and source windows, not Settings.
+    var hasContentWindows: Bool {
+        !windows.isEmpty
+    }
+
     func openFile(_ url: URL) {
         // Record this file for Open Recent menu
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
+
+        // A second `mrkd plan.md` focuses the window already showing that file
+        // rather than stacking a duplicate on top of it.
+        if let existing = window(showing: url) {
+            existing.makeKeyAndOrderFront(nil)
+            return
+        }
 
         let window = createWindow(for: url)
         let viewController = MarkdownViewController(fileURL: url)
@@ -45,8 +57,33 @@ final class WindowManager: NSObject {
             NSSound.beep()
             return
         }
+        openSource(string, title: "Clipboard")
+    }
 
-        let window = createClipboardWindow()
+    /// Markdown piped to the `mrkd` command. It is titled "stdin" for the same
+    /// reason clipboard windows are titled "Clipboard": the title names where
+    /// the text came from, which is the only true thing about a document with
+    /// no file behind it.
+    func openStandardInput(source: String) {
+        openSource(source, title: "stdin")
+    }
+
+    /// Reopens the newest document that is still on disk. Returns false when
+    /// there is nothing left to reopen.
+    @discardableResult
+    func restoreMostRecentDocument() -> Bool {
+        guard let url = RecentDocuments.mostRecent(
+            from: NSDocumentController.shared.recentDocumentURLs,
+            isOpenable: RecentDocuments.isOpenableFile
+        ) else { return false }
+
+        openFile(url)
+        return true
+    }
+
+    /// Markdown with no file behind it — the clipboard, or standard input.
+    private func openSource(_ string: String, title: String) {
+        let window = createSourceWindow(titled: title)
         let viewController = MarkdownViewController(markdownString: string)
         window.contentViewController = viewController
 
@@ -60,7 +97,7 @@ final class WindowManager: NSObject {
 
     // MARK: - Window Creation
 
-    private func createClipboardWindow() -> NSWindow {
+    private func createSourceWindow(titled title: String) -> NSWindow {
         let window = NSWindow(
             contentRect: .zero,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -72,7 +109,7 @@ final class WindowManager: NSObject {
         window.titleVisibility = .hidden
         window.styleMask.insert(.fullSizeContentView)
 
-        window.title = "Clipboard"
+        window.title = title
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.tabbingMode = .disallowed
@@ -109,6 +146,14 @@ final class WindowManager: NSObject {
         window.delegate = self
 
         return window
+    }
+
+    private func window(showing url: URL) -> NSWindow? {
+        let key = DocumentIdentity.key(for: url)
+        return windows.first { window in
+            guard let represented = window.representedURL else { return false }
+            return DocumentIdentity.key(for: represented) == key
+        }
     }
 
     private func centerWindowOnCursorDisplay(_ window: NSWindow) {

@@ -157,6 +157,38 @@ enum MenuBuilder {
             keyEquivalent: "a"
         ))
 
+        editMenu.addItem(.separator())
+
+        // Find...
+        editMenu.addItem(NSMenuItem(
+            title: "Find...",
+            action: #selector(MarkdownViewController.showFindBar(_:)),
+            keyEquivalent: "f"
+        ))
+
+        // Find Next
+        editMenu.addItem(NSMenuItem(
+            title: "Find Next",
+            action: #selector(MarkdownViewController.findNext(_:)),
+            keyEquivalent: "g"
+        ))
+
+        // Find Previous
+        let findPreviousItem = NSMenuItem(
+            title: "Find Previous",
+            action: #selector(MarkdownViewController.findPrevious(_:)),
+            keyEquivalent: "G"
+        )
+        findPreviousItem.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(findPreviousItem)
+
+        // Use Selection for Find
+        editMenu.addItem(NSMenuItem(
+            title: "Use Selection for Find",
+            action: #selector(MarkdownViewController.useSelectionForFind(_:)),
+            keyEquivalent: "e"
+        ))
+
         let editMenuItem = NSMenuItem()
         editMenuItem.submenu = editMenu
         return editMenuItem

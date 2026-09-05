@@ -46,6 +46,17 @@ final class TextInteractionHandler: NSObject, NSTextViewDelegate {
         return true
     }
 
+    // MARK: - Selection
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView else { return }
+        // The owner decides what the change means: an empty selection
+        // releases a live reload that was held back because it would have
+        // destroyed the old one, and any change hands ownership of the
+        // selection back to the reader until a find action claims it.
+        owner?.selectionDidChange(isEmpty: textView.selectedRange().length == 0)
+    }
+
     // MARK: - Context Menu
 
     func textView(_ textView: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {

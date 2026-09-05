@@ -1,0 +1,64 @@
+[package]
+name = "mermaid-shim"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "C ABI over merman, linked into mrkd and its Quick Look extension"
+license = "MIT"
+
+[lib]
+name = "mermaid_shim"
+# A dynamic library so the ~9.5 MB payload is embedded once in the app's
+# Contents/Frameworks and linked by both the app and the sandboxed Quick
+# Look extension. A staticlib would be paid twice.
+crate-type = ["cdylib"]
+
+[dependencies]
+# Pinned exactly: this is a pre-1.0 alpha. Cargo.lock is committed.
+merman = { version = "=0.8.0-alpha.6", default-features = false, features = [
+    "svg",
+    "png",
+] }
+# Already in merman's own tree, so these cost nothing in binary size. They
+# decode the theme payload Swift builds from the active mrkd theme.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+# Already in the tree via resvg; used only to inflate a PNG in the
+# transparency test.
+miniz_oxide = "0.8"
+
+# Measured on this machine (see docs/research/mermaid-rendering-options.md):
+#   opt-level = 3   everywhere      -> 11.7 MB, ~7 ms warm
+#   opt-level = "s" + the overrides ->  9.5 MB, ~10 ms warm   <- this profile
+#   opt-level = "z" everywhere      ->  6.6 MB, ~1100 ms warm (rejected)
+# The overrides matter: size-optimising the rasteriser is what destroys
+# render performance, so tiny-skia/resvg/usvg/png/miniz_oxide stay at 3.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+# NOT "abort". A panic inside merman or resvg has to unwind far enough for
+# catch_unwind in lib.rs to turn it into an error code; aborting would take
+# down the host app or the Quick Look extension with it.
+panic = "unwind"
+
+[profile.release.package.tiny-skia]
+opt-level = 3
+
+[profile.release.package.tiny-skia-path]
+opt-level = 3
+
+[profile.release.package.resvg]
+opt-level = 3
+
+[profile.release.package.usvg]
+opt-level = 3
+
+[profile.release.package.png]
+opt-level = 3
+
+[profile.release.package.miniz_oxide]
+opt-level = 3

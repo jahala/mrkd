@@ -1,0 +1,7 @@
+module CMermaid {
+    header "mermaid_shim.h"
+    // Autolinks -lmermaid_shim in both SwiftPM and Xcode, so each build
+    // system only has to supply the library search path.
+    link "mermaid_shim"
+    export *
+}

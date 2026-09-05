@@ -1,12 +1,15 @@
 import AppKit
 
+/// Tells the reader their file is gone.
+///
+/// External *edits* need no banner — they reload themselves — so deletion is
+/// the only thing left worth interrupting for, and the only thing there is
+/// nothing sensible to render for.
 final class ReloadBannerView: NSView {
 
-    var onReload: (() -> Void)?
     var onDismiss: (() -> Void)?
 
-    private let label = NSTextField(labelWithString: "File has been modified externally")
-    private let reloadButton = NSButton(title: "Reload", target: nil, action: nil)
+    private let label = NSTextField(labelWithString: "")
     private let dismissButton = NSButton(title: "Dismiss", target: nil, action: nil)
 
     override init(frame: NSRect) {
@@ -26,18 +29,13 @@ final class ReloadBannerView: NSView {
         label.font = .systemFont(ofSize: 12)
         label.textColor = .labelColor
 
-        reloadButton.bezelStyle = .rounded
-        reloadButton.controlSize = .small
-        reloadButton.target = self
-        reloadButton.action = #selector(reloadTapped)
-
         dismissButton.bezelStyle = .rounded
         dismissButton.controlSize = .small
         dismissButton.isBordered = false
         dismissButton.target = self
         dismissButton.action = #selector(dismissTapped)
 
-        let stack = NSStackView(views: [label, reloadButton, dismissButton])
+        let stack = NSStackView(views: [label, dismissButton])
         stack.orientation = .horizontal
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
@@ -54,18 +52,12 @@ final class ReloadBannerView: NSView {
 
         // Accessibility
         setAccessibilityRole(.group)
-        setAccessibilityLabel("File changed notification")
-        reloadButton.setAccessibilityLabel("Reload file")
+        setAccessibilityLabel("File deleted notification")
         dismissButton.setAccessibilityLabel("Dismiss notification")
     }
 
     func showDeletionMessage(path: String) {
         label.stringValue = "File has been deleted: \(path)"
-        reloadButton.isHidden = true
-    }
-
-    @objc private func reloadTapped() {
-        onReload?()
     }
 
     @objc private func dismissTapped() {

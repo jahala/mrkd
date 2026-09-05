@@ -19,8 +19,7 @@ struct HighContrastTheme: Theme {
 
     var textColor: NSColor {
         // Boost contrast: ensure text is fully opaque and maximum contrast
-        let isDark = (base.backgroundColor.usingColorSpace(.sRGB)?.brightnessComponent ?? 0.5) < 0.5
-        return isDark ? .white : .black
+        return base.isDark ? .white : .black
     }
 
     var linkColor: NSColor { base.linkColor }
@@ -29,13 +28,11 @@ struct HighContrastTheme: Theme {
 
     var blockquoteColor: NSColor {
         // Boost blockquote to be more visible
-        let isDark = (base.backgroundColor.usingColorSpace(.sRGB)?.brightnessComponent ?? 0.5) < 0.5
-        return isDark ? NSColor(white: 0.8, alpha: 1.0) : NSColor(white: 0.2, alpha: 1.0)
+        return base.isDark ? NSColor(white: 0.8, alpha: 1.0) : NSColor(white: 0.2, alpha: 1.0)
     }
 
     var blockquoteBarColor: NSColor {
-        let isDark = (base.backgroundColor.usingColorSpace(.sRGB)?.brightnessComponent ?? 0.5) < 0.5
-        return isDark ? NSColor(white: 0.7, alpha: 1.0) : NSColor(white: 0.3, alpha: 1.0)
+        return base.isDark ? NSColor(white: 0.7, alpha: 1.0) : NSColor(white: 0.3, alpha: 1.0)
     }
 
     var highlightrTheme: String { base.highlightrTheme }
@@ -44,7 +41,6 @@ struct HighContrastTheme: Theme {
     func admonitionBackgroundColor(type: AdmonitionType) -> NSColor { base.admonitionBackgroundColor(type: type) }
 
     func headingColor(level: Int) -> NSColor {
-        let isDark = (base.backgroundColor.usingColorSpace(.sRGB)?.brightnessComponent ?? 0.5) < 0.5
-        return isDark ? .white : .black
+        return base.isDark ? .white : .black
     }
 }

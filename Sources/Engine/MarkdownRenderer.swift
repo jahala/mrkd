@@ -4,15 +4,16 @@ import cmark_gfm_extensions
 import Highlightr
 
 extension NSAttributedString.Key {
-    /// Stores the source URL string for an image attachment, used by the
-    /// view controller to trigger async loading via ImageAttachmentProvider.
-    static let imageSourceURL = NSAttributedString.Key("MrkdImageSource")
-
     /// Heading level (1–6) for VoiceOver rotor navigation.
     static let accessibilityHeadingLevel = NSAttributedString.Key("MrkdHeadingLevel")
 
     /// Border color for inline code spans, drawn by CodeBorderLayoutManager.
     static let inlineCodeBorderColor = NSAttributedString.Key("MrkdInlineCodeBorder")
+
+    /// Index of the `BlockSplitter` source block a run of rendered text came
+    /// from. Lets the view controller point at the blocks a live reload
+    /// changed without re-parsing the document.
+    static let sourceBlockIndex = NSAttributedString.Key("MrkdSourceBlockIndex")
 }
 
 enum MarkdownRenderer {
@@ -23,13 +24,12 @@ enum MarkdownRenderer {
     static func render(_ markdown: String, theme: Theme = DefaultTheme()) -> NSMutableAttributedString {
         registerGFMExtensions()
 
-        let source = theme.smartTypographyAllowed
-            ? BlockSplitter.split(markdown).map(smartenMarkdown).joined(separator: "\n\n")
-            : markdown
+        let (blocks, math) = parserBlocks(markdown, theme: theme)
+        let source = blocks.joined(separator: "\n\n")
 
         let options = CMARK_OPT_DEFAULT | CMARK_OPT_UNSAFE
         guard let parser = cmark_parser_new(options) else {
-            return NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
+            return unparsedDocument(source, math: math, theme: theme)
         }
         defer { cmark_parser_free(parser) }
 
@@ -43,14 +43,52 @@ enum MarkdownRenderer {
 
         cmark_parser_feed(parser, source, source.utf8.count)
         guard let doc = cmark_parser_finish(parser) else {
-            return NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
+            return unparsedDocument(source, math: math, theme: theme)
         }
         defer { cmark_node_free(doc) }
 
         let result = NSMutableAttributedString()
-        renderNode(doc, into: result, theme: theme, listDepth: 0, listIndex: 0, isOrdered: false)
+        renderTopLevelBlocks(
+            of: doc,
+            into: result,
+            theme: theme,
+            blockStartLines: BlockSplitter.startLines(joining: blocks)
+        )
         trimTrailingNewlines(result)
+        substituteMath(math, in: result, theme: theme)
 
+        return result
+    }
+
+    /// The blocks handed to cmark, in the order they are joined by a blank
+    /// line, together with every formula lifted out of them.
+    ///
+    /// Splitting first is what makes smart typography fence-aware; the
+    /// non-smart path splits too so that source-block indices mean the same
+    /// thing either way. Math comes out before smartening either way —
+    /// a formula is not prose and must not be typeset like it.
+    private static func parserBlocks(
+        _ markdown: String,
+        theme: Theme
+    ) -> (blocks: [String], math: [MathSpan]) {
+        var math: [MathSpan] = []
+        let blocks = BlockSplitter.split(markdown).map { block -> String in
+            let (source, spans) = MathSpanScanner.extract(from: block, firstIndex: math.count)
+            math.append(contentsOf: spans)
+            return theme.smartTypographyAllowed ? smartenMarkdown(source) : source
+        }
+        return (blocks, math)
+    }
+
+    /// What the reader gets when cmark itself will not start. Rare enough
+    /// that it has never been seen, but it still must not show placeholders.
+    private static func unparsedDocument(
+        _ source: String,
+        math: [MathSpan],
+        theme: Theme
+    ) -> NSMutableAttributedString {
+        let result = NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
+        substituteMath(math, in: result, theme: theme)
         return result
     }
 
@@ -253,8 +291,8 @@ enum MarkdownRenderer {
                 attributedString: NSAttributedString(attachment: attachment)
             )
             if !sourceURL.isEmpty {
-                attachmentString.addAttribute(
-                    .imageSourceURL, value: sourceURL,
+                attachmentString.addAttributes(
+                    DeferredAttachment(kind: .image, source: sourceURL).attributes,
                     range: NSRange(location: 0, length: attachmentString.length)
                 )
             }
@@ -469,6 +507,69 @@ enum MarkdownRenderer {
             if !lang.isEmpty { language = lang }
         }
 
+        if isMermaidFence(language) {
+            result.append(diagramAttachment(source: code))
+        } else {
+            result.append(codeBlock(code: code, language: language, theme: theme))
+        }
+        appendNewlines(result, count: 1)
+    }
+
+    /// True for the fence info that means "this is a Mermaid diagram".
+    ///
+    /// cmark hands back the whole info string, so `mermaid` and `Mermaid `
+    /// are the same thing. Anything carrying extra words is left as code —
+    /// a fence this renderer does not understand should show its source,
+    /// not be guessed at.
+    static func isMermaidFence(_ language: String?) -> Bool {
+        guard let language else { return false }
+        return language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "mermaid"
+    }
+
+    /// The placeholder a Mermaid block leaves for `MarkdownViewController`
+    /// to rasterise — themed to the document and at the display's scale,
+    /// neither of which the renderer knows.
+    private static func diagramAttachment(source: String) -> NSAttributedString {
+        let attachment = NSTextAttachment()
+        attachment.image = placeholderImage
+        let string = NSMutableAttributedString(
+            attributedString: NSAttributedString(attachment: attachment)
+        )
+        string.addAttributes(
+            DeferredAttachment(kind: .diagram, source: source).attributes,
+            range: NSRange(location: 0, length: string.length)
+        )
+        return string
+    }
+
+    /// The styled code block that stands in for a diagram which could not be
+    /// rendered, so a broken flowchart shows the reader their own source
+    /// instead of a gap.
+    ///
+    /// `sourceBlockIndex` is carried over from the attachment being replaced:
+    /// it is what ties rendered text back to its block in the markdown, and
+    /// the changed-block accents stop working on anything that loses it.
+    static func diagramFallback(
+        source: String,
+        theme: Theme,
+        sourceBlockIndex: Int?
+    ) -> NSAttributedString {
+        let block = NSMutableAttributedString(
+            attributedString: codeBlock(code: source, language: "mermaid", theme: theme)
+        )
+        if let sourceBlockIndex {
+            block.addAttribute(
+                .sourceBlockIndex,
+                value: sourceBlockIndex,
+                range: NSRange(location: 0, length: block.length)
+            )
+        }
+        return block
+    }
+
+    /// A fenced code block: the language label, then the source,
+    /// syntax-highlighted when Highlightr recognises the language.
+    static func codeBlock(code: String, language: String?, theme: Theme) -> NSAttributedString {
         let codeResult = NSMutableAttributedString()
         let baseAttrs = theme.codeBlockAttributes
 
@@ -496,8 +597,7 @@ enum MarkdownRenderer {
             codeResult.append(NSAttributedString(string: code, attributes: baseAttrs))
         }
 
-        result.append(codeResult)
-        appendNewlines(result, count: 1)
+        return codeResult
     }
 
     private static func renderLink(
@@ -780,6 +880,101 @@ enum MarkdownRenderer {
         }
     }
 
+    // MARK: - Math
+
+    /// Swap every math placeholder for the formula it stands for.
+    ///
+    /// Runs over the finished attributed string rather than inside the AST
+    /// walk, so nothing between `parserBlocks` and here has to know that
+    /// math exists — and the formula inherits whatever the surrounding run
+    /// carried: its paragraph style, its source-block index, its link.
+    private static func substituteMath(
+        _ spans: [MathSpan],
+        in result: NSMutableAttributedString,
+        theme: Theme
+    ) {
+        guard !spans.isEmpty else { return }
+
+        // Back to front: a replacement moves everything after it.
+        for placeholder in MathSpanScanner.placeholderRanges(in: result.string as NSString).reversed() {
+            guard placeholder.index < spans.count,
+                  NSMaxRange(placeholder.range) <= result.length else { continue }
+            let span = spans[placeholder.index]
+            let inherited = result.attributes(at: placeholder.range.location, effectiveRange: nil)
+            let replacement = mathRun(for: span, theme: theme, inheriting: inherited)
+            result.replaceCharacters(in: placeholder.range, with: replacement)
+
+            if span.isDisplay {
+                centreDisplayMath(
+                    in: result,
+                    around: NSRange(location: placeholder.range.location, length: replacement.length)
+                )
+            }
+        }
+    }
+
+    /// The attachment for a formula — or, when SwaTex cannot parse it, the
+    /// source the author wrote. A gap would leave them nothing to correct.
+    private static func mathRun(
+        for span: MathSpan,
+        theme: Theme,
+        inheriting attributes: [NSAttributedString.Key: Any]
+    ) -> NSAttributedString {
+        guard let layout = MathRenderer.layout(
+            latex: span.latex,
+            isDisplay: span.isDisplay,
+            fontSize: theme.bodyFontSize
+        ) else {
+            return NSAttributedString(string: span.literal, attributes: attributes)
+        }
+
+        // Sized here, from the layout, so the line is the right height from
+        // the first frame. The view fills the pixels in once it knows the
+        // display's backing scale.
+        let attachment = NSTextAttachment()
+        attachment.bounds = layout.attachmentBounds
+
+        let run = NSMutableAttributedString(
+            attributedString: NSAttributedString(attachment: attachment)
+        )
+        let range = NSRange(location: 0, length: run.length)
+        run.addAttributes(attributes, range: range)
+        run.addAttributes(
+            DeferredAttachment(
+                kind: span.isDisplay ? .displayMath : .inlineMath,
+                source: span.latex
+            ).attributes,
+            range: range
+        )
+        return run
+    }
+
+    /// Centre a display formula's line — but only when the formula is the
+    /// whole line. `$$…$$` used mid-sentence still renders; centring there
+    /// would drag the prose around it into the middle of the page.
+    private static func centreDisplayMath(
+        in result: NSMutableAttributedString,
+        around range: NSRange
+    ) {
+        let text = result.string as NSString
+        let paragraph = text.paragraphRange(for: range)
+        guard paragraph.length > 0 else { return }
+
+        let others = text.substring(with: paragraph)
+            .replacingOccurrences(of: "\u{FFFC}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard others.isEmpty else { return }
+
+        let existing = result.attribute(
+            .paragraphStyle,
+            at: paragraph.location,
+            effectiveRange: nil
+        ) as? NSParagraphStyle
+        let style = (existing ?? .default).mutableCopy() as! NSMutableParagraphStyle
+        style.alignment = .center
+        result.addAttribute(.paragraphStyle, value: style, range: paragraph)
+    }
+
     // MARK: - Helpers
 
     /// Check if a node type is a block-level element (for spacing purposes)
@@ -981,13 +1176,12 @@ enum MarkdownRenderer {
     ) -> NSMutableAttributedString {
         registerGFMExtensions()
 
-        let source = theme.smartTypographyAllowed
-            ? BlockSplitter.split(markdown).map(smartenMarkdown).joined(separator: "\n\n")
-            : markdown
+        let (blocks, math) = parserBlocks(markdown, theme: theme)
+        let source = blocks.joined(separator: "\n\n")
 
         let options = CMARK_OPT_DEFAULT | CMARK_OPT_UNSAFE
         guard let parser = cmark_parser_new(options) else {
-            let fallback = NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
+            let fallback = unparsedDocument(source, math: math, theme: theme)
             onFirstScreen(fallback)
             return fallback
         }
@@ -1002,15 +1196,63 @@ enum MarkdownRenderer {
 
         cmark_parser_feed(parser, source, source.utf8.count)
         guard let doc = cmark_parser_finish(parser) else {
-            let fallback = NSMutableAttributedString(string: source, attributes: theme.bodyAttributes)
+            let fallback = unparsedDocument(source, math: math, theme: theme)
             onFirstScreen(fallback)
             return fallback
         }
         defer { cmark_node_free(doc) }
 
         let result = NSMutableAttributedString()
-        var blockIndex = 0
         var deliveredFirstScreen = false
+
+        renderTopLevelBlocks(
+            of: doc,
+            into: result,
+            theme: theme,
+            blockStartLines: BlockSplitter.startLines(joining: blocks)
+        ) { renderedCount in
+            guard !deliveredFirstScreen, renderedCount >= firstScreenBlocks else { return }
+            deliveredFirstScreen = true
+            onFirstScreen(snapshot(of: result, math: math, theme: theme))
+        }
+
+        // Document had fewer blocks than threshold — deliver now
+        if !deliveredFirstScreen {
+            onFirstScreen(snapshot(of: result, math: math, theme: theme))
+        }
+
+        trimTrailingNewlines(result)
+        substituteMath(math, in: result, theme: theme)
+        return result
+    }
+
+    /// A first-screen copy of a render still in progress. Math is
+    /// substituted into the copy, so the reader never sees a placeholder,
+    /// and the render carries on with the placeholders it still needs.
+    private static func snapshot(
+        of result: NSMutableAttributedString,
+        math: [MathSpan],
+        theme: Theme
+    ) -> NSMutableAttributedString {
+        let copy = NSMutableAttributedString(attributedString: result)
+        trimTrailingNewlines(copy)
+        substituteMath(math, in: copy, theme: theme)
+        return copy
+    }
+
+    /// Render a document's top-level blocks, tagging each rendered run with
+    /// the index of the source block it started in. `onBlockRendered` is
+    /// called after each block with the number rendered so far — that is the
+    /// only difference between the one-pass and progressive renders, so they
+    /// share this loop rather than keeping two copies of it in step.
+    private static func renderTopLevelBlocks(
+        of doc: CMarkNode,
+        into result: NSMutableAttributedString,
+        theme: Theme,
+        blockStartLines: [Int],
+        onBlockRendered: ((Int) -> Void)? = nil
+    ) {
+        var renderedCount = 0
         var child = cmark_node_first_child(doc)
         var previousType: cmark_node_type? = nil
         var previousExtensionType: String? = nil
@@ -1044,26 +1286,22 @@ enum MarkdownRenderer {
                 previousExtensionType = extensionType
             }
 
-            blockIndex += 1
-
-            if !deliveredFirstScreen && blockIndex >= firstScreenBlocks {
-                deliveredFirstScreen = true
-                let snapshot = NSMutableAttributedString(attributedString: result)
-                trimTrailingNewlines(snapshot)
-                onFirstScreen(snapshot)
+            if result.length > startPosition,
+               let sourceIndex = BlockSplitter.blockIndex(
+                   forLine: Int(cmark_node_get_start_line(block)),
+                   startLines: blockStartLines
+               ) {
+                result.addAttribute(
+                    .sourceBlockIndex,
+                    value: sourceIndex,
+                    range: NSRange(location: startPosition, length: result.length - startPosition)
+                )
             }
+
+            renderedCount += 1
+            onBlockRendered?(renderedCount)
 
             child = cmark_node_next(block)
         }
-
-        // Document had fewer blocks than threshold — deliver now
-        if !deliveredFirstScreen {
-            let snapshot = NSMutableAttributedString(attributedString: result)
-            trimTrailingNewlines(snapshot)
-            onFirstScreen(snapshot)
-        }
-
-        trimTrailingNewlines(result)
-        return result
     }
 }

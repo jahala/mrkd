@@ -33,11 +33,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         didFinishLaunching = true
 
         if !pendingURLs.isEmpty {
-            for url in pendingURLs {
-                WindowManager.shared.openFile(url)
-            }
+            handleIncoming(pendingURLs)
             pendingURLs.removeAll()
-        } else {
+        } else if !WindowManager.shared.restoreMostRecentDocument() {
+            // `mrkd` with nothing to reopen — and a first launch — still has to
+            // put something in front of the user.
             showOpenPanel()
         }
     }
@@ -48,13 +48,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Accept any file when opened explicitly by user (via Open With, drag-and-drop)
         // Binary detection happens in FileReader
         if didFinishLaunching {
-            for url in urls {
-                WindowManager.shared.openFile(url)
-            }
+            handleIncoming(urls)
             NSApp.activate()
         } else {
             pendingURLs.append(contentsOf: urls)
         }
+    }
+
+    /// Everything that arrives as a URL — Finder, Open With, drag and drop, and
+    /// the `mrkd` command. Markdown piped to the command arrives as a capsule
+    /// in mrkd's own cache directory and is source, not a document on disk.
+    private func handleIncoming(_ urls: [URL]) {
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        for url in urls {
+            if StdinCapsule.isCapsule(url, homeDirectory: home) {
+                openStandardInputCapsule(url)
+            } else {
+                WindowManager.shared.openFile(url)
+            }
+        }
+    }
+
+    private func openStandardInputCapsule(_ url: URL) {
+        do {
+            let source = try String(contentsOf: url, encoding: .utf8)
+            try? FileManager.default.removeItem(at: url)
+            WindowManager.shared.openStandardInput(source: source)
+        } catch {
+            // The capsule is left in place so the piped text is not lost.
+            let alert = NSAlert()
+            alert.messageText = "Couldn’t read the piped Markdown"
+            alert.informativeText = "\(error.localizedDescription)\n\n\(url.path)"
+            alert.runModal()
+        }
+    }
+
+    /// `mrkd` with no arguments, or a click on the Dock icon, reopens the last
+    /// document rather than leaving the user staring at an empty app.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        guard !WindowManager.shared.hasContentWindows else { return true }
+
+        if !WindowManager.shared.restoreMostRecentDocument() {
+            showOpenPanel()
+        }
+        return true
     }
 
     // MARK: - Window Lifecycle
