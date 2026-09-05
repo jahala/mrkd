@@ -209,8 +209,23 @@ final class LiveReloadTests: XCTestCase {
         guard let target = vc.tocEntries.first(where: { $0.text == "Target" }) else {
             return XCTFail("fixture should contain a Target heading")
         }
-        vc.scrollToHeading(target)
-        spinRunLoop(for: 0.1)
+        // Lay the whole document out before scrolling. TextKit lays out
+        // lazily, so on a machine with no window server the text view can
+        // still be shorter than one screenful when the scroll is attempted,
+        // the offset is clamped to zero, and the anchor reads "Top" — which
+        // is how this passed locally and failed on CI.
+        if let textView = textView(in: vc.view),
+           let layoutManager = textView.layoutManager,
+           let container = textView.textContainer {
+            layoutManager.ensureLayout(for: container)
+        }
+        XCTAssertTrue(
+            waitUntil {
+                vc.scrollToHeading(target)
+                return vc.currentReadingAnchor().heading?.text == "Target"
+            },
+            "scrolling to the Target heading never took effect"
+        )
         let anchoredBefore = vc.currentReadingAnchor()
         XCTAssertEqual(anchoredBefore.heading?.text, "Target")
         let locationBefore = target.location
