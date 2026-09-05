@@ -16,7 +16,7 @@ No Electron. No WebView. Markdown is parsed with cmark-gfm and rendered directly
 
 ## Requirements
 
-- macOS 15.0+
+- macOS 15.0+ (Apple silicon)
 - Xcode 16+
 
 ## Building

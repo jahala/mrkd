@@ -1,5 +1,11 @@
 # Build artifacts
 .build/
+# xcodebuild -derivedDataPath output used by scripts/build-app.sh and local builds.
+build/
+# Mermaid renderer: built by scripts/build-mermaid.sh, not committed.
+# rust/mermaid-shim/Cargo.lock IS committed — merman is a pinned pre-1.0 alpha.
+Frameworks/
+rust/mermaid-shim/target/
 DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
