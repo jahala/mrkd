@@ -14,8 +14,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # SwaTex declares swift-tools-version 6.1, so a toolchain older than
+      # that cannot even resolve the dependency graph. Pinning an exact Xcode
+      # broke the moment that dependency arrived, so pick the newest release
+      # build on the runner and fail loudly if it is still too old, rather
+      # than pinning a version that silently rots again.
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_[0-9]*.app 2>/dev/null \
+            | grep -v -i beta | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "error: no Xcode found on the runner" >&2
+            exit 1
+          fi
+          echo "Selecting $XCODE"
+          sudo xcode-select -s "$XCODE"
+          swift --version
+          SWIFT_MINOR=$(swift --version 2>&1 \
+            | sed -n 's/.*Apple Swift version \([0-9]*\)\.\([0-9]*\).*/\1\2/p' | head -1)
+          if [ "${SWIFT_MINOR:-0}" -lt 61 ]; then
+            echo "error: Swift 6.1+ required (SwaTex needs swift-tools-version 6.1)" >&2
+            exit 1
+          fi
 
       - name: Install certificate
         env:
