@@ -70,9 +70,16 @@ extension Theme {
     var accentColor: NSColor { headingColor(level: 1) }
     var codeFontFamily: String { fontFamily }
 
+    /// Whether the document reads as dark. One rule, shared by everything
+    /// that has to pick a light or a dark variant of something — the syntax
+    /// highlighting theme, the find bar's appearance — so a theme can never
+    /// come out dark for one and light for another.
+    var isDark: Bool {
+        (backgroundColor.usingColorSpace(.sRGB)?.brightnessComponent ?? 0.5) < 0.5
+    }
+
     var highlightrTheme: String {
-        let isDark = (backgroundColor.usingColorSpace(.sRGB)?.brightnessComponent ?? 0.5) < 0.5
-        return isDark ? "atom-one-dark" : "atom-one-light"
+        isDark ? "atom-one-dark" : "atom-one-light"
     }
 
     var tableHeaderBackgroundColor: NSColor { codeBackgroundColor.withAlphaComponent(0.5) }

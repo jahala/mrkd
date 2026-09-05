@@ -31,10 +31,30 @@ final class FileWatcher {
             let flags = source.data
 
             if flags.contains(.delete) || flags.contains(.rename) {
-                DispatchQueue.main.async {
-                    self.delegate?.fileWatcher(self, didDetectDeletionOf: self.url)
+                // An atomic save — write a temp file, rename it over the
+                // original — unlinks the inode this descriptor is watching,
+                // so it arrives here rather than as a write. The path is
+                // already valid again by the time rename(2) returns, so
+                // report a change and re-attach to the replacement inode.
+                // Only a path that is genuinely gone is a deletion.
+                var reattached = false
+                if FileManager.default.fileExists(atPath: self.url.path) {
+                    self.source?.cancel()
+                    self.source = nil
+                    self.start()
+                    reattached = self.source != nil
                 }
-                self.restartAfterDeletion()
+
+                if reattached {
+                    DispatchQueue.main.async {
+                        self.delegate?.fileWatcher(self, didDetectChangeFor: self.url)
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.delegate?.fileWatcher(self, didDetectDeletionOf: self.url)
+                    }
+                    self.restartAfterDeletion()
+                }
             } else if flags.contains(.write) {
                 DispatchQueue.main.async {
                     self.delegate?.fileWatcher(self, didDetectChangeFor: self.url)

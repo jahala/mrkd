@@ -39,14 +39,21 @@ jobs:
 
           security list-keychain -d user -s "$KEYCHAIN_PATH"
 
+      # Both `swift test` and `xcodebuild` link against the Mermaid renderer,
+      # so it has to exist before either runs. There is no fallback: a missing
+      # dylib fails the link rather than quietly shipping an app whose
+      # ```mermaid blocks render as nothing.
+      - name: Build Mermaid renderer
+        run: ./scripts/build-mermaid.sh
+
       - name: Run tests
         run: swift test
 
-      - name: Build Release (Universal)
+      - name: Build Release (Apple silicon)
         run: |
           xcodebuild -scheme mrkd -configuration Release \
             -derivedDataPath build \
-            ARCHS="arm64 x86_64" \
+            ARCHS="arm64" \
             ONLY_ACTIVE_ARCH=NO \
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
             CODE_SIGN_STYLE=Manual \

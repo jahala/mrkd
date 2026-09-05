@@ -15,6 +15,12 @@ final class SettingsWindowController: NSWindowController {
     private var bodyFontPopUpButton: NSPopUpButton!
     private var bodyFontSizePopUpButton: NSPopUpButton!
     private var codeFontPopUpButton: NSPopUpButton!
+    private var commandLineStatusLabel: NSTextField!
+
+    /// Starts unknown: a GUI app inherits launchd's PATH, not the user's, so
+    /// the real answer has to be fetched from the login shell.
+    private var shellPathState: ShellPathState = .unknown
+    private var didProbeShellPath = false
 
     private static let bodyFontSizes: [Int] = [11, 12, 13, 14, 15, 16, 17, 18, 20]
 
@@ -89,11 +95,20 @@ final class SettingsWindowController: NSWindowController {
             assignTo: &codeFontPopUpButton
         )
 
+        let commandLineSectionLabel = NSTextField(labelWithString: "Command Line")
+        commandLineSectionLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        commandLineSectionLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let commandLineRow = createCommandLineRow()
+
         stackView.addArrangedSubview(themeSectionLabel)
         stackView.addArrangedSubview(themePickerGrid)
         stackView.addArrangedSubview(bodyFontRow)
         stackView.addArrangedSubview(fontSizeRow)
         stackView.addArrangedSubview(codeFontRow)
+        stackView.setCustomSpacing(28, after: codeFontRow)
+        stackView.addArrangedSubview(commandLineSectionLabel)
+        stackView.addArrangedSubview(commandLineRow)
 
         // Wrap in a scroll view so all content is reachable
         let scrollView = NSScrollView()
@@ -235,6 +250,138 @@ final class SettingsWindowController: NSWindowController {
         return container
     }
 
+    // MARK: - Command Line
+
+    private func createCommandLineRow() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let description = NSTextField(wrappingLabelWithString:
+            "Adds an mrkd command to ~/.local/bin so you can open Markdown from the terminal: "
+            + "mrkd FILE, mrkd on its own to reopen the last document, or pipe into it.")
+        description.font = .systemFont(ofSize: 11)
+        description.textColor = .secondaryLabelColor
+        description.translatesAutoresizingMaskIntoConstraints = false
+
+        let button = NSButton(
+            title: "Install mrkd Command",
+            target: self,
+            action: #selector(installCommandLineTool(_:))
+        )
+        button.bezelStyle = .rounded
+        button.translatesAutoresizingMaskIntoConstraints = false
+
+        let status = NSTextField(wrappingLabelWithString: "")
+        status.font = .systemFont(ofSize: 11)
+        status.textColor = .secondaryLabelColor
+        status.translatesAutoresizingMaskIntoConstraints = false
+        commandLineStatusLabel = status
+
+        container.addSubview(description)
+        container.addSubview(button)
+        container.addSubview(status)
+
+        NSLayoutConstraint.activate([
+            description.topAnchor.constraint(equalTo: container.topAnchor),
+            description.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            description.widthAnchor.constraint(equalToConstant: 520),
+
+            button.topAnchor.constraint(equalTo: description.bottomAnchor, constant: 10),
+            button.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+
+            status.topAnchor.constraint(equalTo: button.bottomAnchor, constant: 8),
+            status.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            status.widthAnchor.constraint(equalToConstant: 520),
+            status.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+
+            container.trailingAnchor.constraint(greaterThanOrEqualTo: description.trailingAnchor),
+        ])
+
+        refreshCommandLineStatus()
+        return container
+    }
+
+    private var commandLineDestination: URL {
+        CommandLineLauncher.installURL(homeDirectory: URL(fileURLWithPath: NSHomeDirectory()))
+    }
+
+    /// The script that *would* be installed for this copy of the app — the same
+    /// value drives the status text and the install itself.
+    private var commandLineScript: String? {
+        guard let executable = Bundle.main.executableURL else { return nil }
+        return CommandLineLauncher.script(appExecutable: executable)
+    }
+
+    private func refreshCommandLineStatus() {
+        guard let script = commandLineScript else {
+            commandLineStatusLabel.stringValue = "mrkd cannot locate its own executable, so the command cannot be installed."
+            return
+        }
+
+        let destination = commandLineDestination
+        commandLineStatusLabel.stringValue = LauncherInstaller.statusText(
+            status: LauncherInstaller.status(
+                existing: LauncherInstallation.existingEntry(at: destination),
+                desired: script
+            ),
+            displayPath: CommandLineLauncher.displayPath(
+                destination,
+                homeDirectory: URL(fileURLWithPath: NSHomeDirectory())
+            ),
+            pathState: shellPathState
+        )
+    }
+
+    @objc private func installCommandLineTool(_ sender: NSButton) {
+        guard let script = commandLineScript else { return }
+        let destination = commandLineDestination
+        let displayPath = CommandLineLauncher.displayPath(
+            destination,
+            homeDirectory: URL(fileURLWithPath: NSHomeDirectory())
+        )
+
+        do {
+            let decision = try LauncherInstallation.install(script: script, at: destination)
+            if decision == .refused {
+                let alert = NSAlert()
+                alert.messageText = "Something else is already at \(displayPath)"
+                alert.informativeText = "mrkd left it alone. Move that file aside and install again."
+                alert.runModal()
+            }
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.messageText = "Couldn’t install the mrkd command"
+            alert.runModal()
+        }
+
+        // The user may have just fixed their PATH; ask the shell again.
+        didProbeShellPath = false
+        probeShellPathIfNeeded()
+        refreshCommandLineStatus()
+    }
+
+    private func probeShellPathIfNeeded() {
+        guard !didProbeShellPath else { return }
+        didProbeShellPath = true
+
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        let directory = CommandLineLauncher.installURL(homeDirectory: home).deletingLastPathComponent()
+
+        Task.detached(priority: .utility) {
+            let state: ShellPathState
+            if let path = LoginShellPath.read() {
+                state = ShellPath.contains(directory, in: path, homeDirectory: home) ? .onPath : .missing
+            } else {
+                state = .unknown
+            }
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.shellPathState = state
+                self.refreshCommandLineStatus()
+            }
+        }
+    }
+
     // MARK: - Actions
 
     @objc private func bodyFontChanged(_ sender: NSPopUpButton) {
@@ -357,6 +504,9 @@ final class SettingsWindowController: NSWindowController {
         super.showWindow(sender)
         window?.makeKeyAndOrderFront(sender)
         window?.makeFirstResponder(themePickerGrid)
+
+        refreshCommandLineStatus()
+        probeShellPathIfNeeded()
     }
 
     deinit {

@@ -54,4 +54,36 @@ enum BlockSplitter {
         flush()
         return result
     }
+
+    /// 1-based line number at which each block begins once the blocks are
+    /// joined by a blank line — which is exactly the string `MarkdownRenderer`
+    /// hands to cmark. Pairs with `blockIndex(forLine:startLines:)` to turn a
+    /// parsed node's source line back into the block it came from.
+    static func startLines(joining blocks: [String]) -> [Int] {
+        var starts: [Int] = []
+        starts.reserveCapacity(blocks.count)
+        var line = 1
+        for block in blocks {
+            starts.append(line)
+            line += block.components(separatedBy: "\n").count + 1
+        }
+        return starts
+    }
+
+    /// Index of the block containing the given 1-based source line, or nil
+    /// when the line precedes every block (or there are no blocks).
+    static func blockIndex(forLine line: Int, startLines: [Int]) -> Int? {
+        guard let first = startLines.first, line >= first else { return nil }
+        var low = 0
+        var high = startLines.count - 1
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if startLines[mid] <= line {
+                low = mid
+            } else {
+                high = mid - 1
+            }
+        }
+        return low
+    }
 }

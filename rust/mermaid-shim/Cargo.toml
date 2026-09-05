@@ -1,0 +1,88 @@
+[package]
+name = "mermaid-shim"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "C ABI over merman, linked into mrkd and its Quick Look extension"
+license = "MIT"
+
+[lib]
+name = "mermaid_shim"
+# A dynamic library so the ~9.5 MB payload is embedded once in the app's
+# Contents/Frameworks and linked by both the app and the sandboxed Quick
+# Look extension. A staticlib would be paid twice.
+crate-type = ["cdylib"]
+
+[dependencies]
+# Pinned exactly, and Cargo.lock is committed: merman is pre-1.0 and a silent
+# dependency bump is exactly what this pin exists to prevent. 0.7.0 is the
+# latest stable release; everything past it is the 0.8 alpha line.
+#
+# `render` only — not `raster`. merman's own PNG path builds its font database
+# privately from the system font directories, which cannot see the typefaces
+# inside mrkd's bundle, and exposes no hook for adding them. The raster step
+# therefore lives in this crate, over the resvg-safe SVG merman hands back.
+merman = { version = "=0.7.0", default-features = false, features = ["render"] }
+# The rasteriser, direct rather than through merman. `usvg` and `tiny-skia`
+# come from resvg's own re-exports so the three versions cannot drift apart.
+# Without `raster-images`: the only images a Mermaid SVG carries are data
+# URLs, and the GIF, WebP and JPEG decoders that feature pulls in are weight
+# with nothing behind it.
+resvg = { version = "0.47", default-features = false, features = [
+    "text",
+    "system-fonts",
+    "memmap-fonts",
+] }
+# Decodes the theme payload and the font list Swift builds.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+# Both already in the tree under tiny-skia's PNG encoder, so neither adds
+# anything to the shipped library. `miniz_oxide` inflates one scanline for
+# the transparency test; `png` decodes a whole image for the tests that check
+# a theme colour actually landed on the pixels.
+miniz_oxide = "0.8"
+png = "0.17"
+
+# Measured on this machine (see docs/research/mermaid-rendering-options.md):
+#   opt-level = 3   everywhere      -> 11.7 MB, ~7 ms warm
+#   opt-level = "s" + the overrides ->  9.5 MB, ~10 ms warm   <- this profile
+#   opt-level = "z" everywhere      ->  6.6 MB, ~1100 ms warm (rejected)
+# The overrides matter: size-optimising the rasteriser is what destroys
+# render performance, so tiny-skia/resvg/usvg/png/miniz_oxide stay at 3.
+#
+# The library this profile now produces is 9,202,640 bytes, against 11,802,192
+# when merman did the rasterising: `render` alone drops the JPEG encoder and
+# the PDF writer that came with its `raster` feature, and resvg without
+# `raster-images` drops the GIF, WebP and JPEG decoders. A 2.6 MB saving for
+# work that had to move here anyway. Rendering a four-node flowchart at 2x:
+# 229 ms for the first (the font database) and 15 ms for every one after,
+# against 22 ms warm before.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+# NOT "abort". A panic inside merman or resvg has to unwind far enough for
+# catch_unwind in lib.rs to turn it into an error code; aborting would take
+# down the host app or the Quick Look extension with it.
+panic = "unwind"
+
+[profile.release.package.tiny-skia]
+opt-level = 3
+
+[profile.release.package.tiny-skia-path]
+opt-level = 3
+
+[profile.release.package.resvg]
+opt-level = 3
+
+[profile.release.package.usvg]
+opt-level = 3
+
+[profile.release.package.png]
+opt-level = 3
+
+[profile.release.package.miniz_oxide]
+opt-level = 3

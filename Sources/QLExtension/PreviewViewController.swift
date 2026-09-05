@@ -65,6 +65,9 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
             vc.view.frame = view.bounds
             vc.view.autoresizingMask = [.width, .height]
             view.addSubview(vc.view)
+            // A preview has no menu bar, so the find shortcuts have to be
+            // handled in the view hierarchy rather than by an Edit menu.
+            vc.handlesFindKeyEquivalents = true
             self.markdownVC = vc
         } catch {
             handler(error)

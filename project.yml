@@ -19,6 +19,9 @@ packages:
   Highlightr:
     url: https://github.com/raspu/Highlightr.git
     from: 2.2.0
+  SwaTex:
+    url: https://github.com/PhraseHQ/SwaTex.git
+    from: 0.5.0
 
 targets:
   mrkd:
@@ -46,14 +49,33 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: Sources/Resources/mrkd.entitlements
         ENABLE_HARDENED_RUNTIME: YES
+        # The Mermaid renderer: a Rust cdylib built by
+        # scripts/build-mermaid.sh. The module map lives beside the crate's
+        # C header and autolinks -lmermaid_shim, so each build system only
+        # has to say where the library is.
+        SWIFT_INCLUDE_PATHS: $(SRCROOT)/rust/mermaid-shim/include
+        LIBRARY_SEARCH_PATHS: $(inherited) $(SRCROOT)/Frameworks
+        LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/../Frameworks
     dependencies:
       - package: swift-cmark
         product: cmark-gfm
       - package: swift-cmark
         product: cmark-gfm-extensions
       - package: Highlightr
+      - package: SwaTex
+        product: SwaTex
+      - package: SwaTex
+        product: SwaTexRender
       - target: QLPlugin
         embed: true
+      # Embedded here and only here. The Quick Look extension links the same
+      # dylib but does not carry its own copy — that is the whole reason it is
+      # a dynamic library, and why Intel was dropped rather than paying ~9.5 MB
+      # twice. `link: false` because the module map already autolinks it.
+      - framework: Frameworks/libmermaid_shim.dylib
+        embed: true
+        link: false
+        codeSign: true
 
 
   QLPlugin:
@@ -73,10 +95,13 @@ targets:
       - path: Sources/UI/TOCFloatingView.swift
       - path: Sources/UI/OpenWithButton.swift
       - path: Sources/UI/ReloadBannerView.swift
+      - path: Sources/UI/ChangedBlockGutterView.swift
       - path: Sources/UI/TextInteractionHandler.swift
+      - path: Sources/UI/DocumentFindController.swift
       - path: Sources/UI/FragmentLinkHandler.swift
       - path: Sources/UI/FontSizeManager.swift
       - path: Sources/Platform/FileWatcher.swift
+      - path: Sources/Platform/Debouncer.swift
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
@@ -88,9 +113,20 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: Sources/QLExtension/QLExtension.entitlements
         ENABLE_HARDENED_RUNTIME: YES
+        # Links the same Mermaid dylib the app embeds, and finds it at run
+        # time by walking out of the .appex to the host app's Frameworks
+        # directory. The extension is sandboxed and cannot spawn a helper
+        # process, which is why this has to be a linked library at all.
+        SWIFT_INCLUDE_PATHS: $(SRCROOT)/rust/mermaid-shim/include
+        LIBRARY_SEARCH_PATHS: $(inherited) $(SRCROOT)/Frameworks
+        LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/../../../../Frameworks
     dependencies:
       - package: swift-cmark
         product: cmark-gfm
       - package: swift-cmark
         product: cmark-gfm-extensions
       - package: Highlightr
+      - package: SwaTex
+        product: SwaTex
+      - package: SwaTex
+        product: SwaTexRender
