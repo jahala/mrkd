@@ -14,26 +14,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # SwaTex declares swift-tools-version 6.1, so a toolchain older than
-      # that cannot even resolve the dependency graph. Pinning an exact Xcode
-      # broke the moment that dependency arrived, so pick the newest release
-      # build on the runner and fail loudly if it is still too old, rather
-      # than pinning a version that silently rots again.
+      # Two constraints pull in opposite directions. SwaTex declares
+      # swift-tools-version 6.1, so Xcode 16.2 (Swift 6.0) cannot resolve the
+      # dependency graph at all. But an Xcode newer than the runner's macOS
+      # crashes actool on AppIcon.icon, because it expects system frameworks
+      # the OS does not have. So: newest non-beta Xcode whose major version
+      # the OS can actually host, and assert Swift 6.1 rather than discover
+      # the shortfall halfway through a resolution log.
       - name: Select Xcode
         run: |
+          echo "macOS $(sw_vers -productVersion); Xcodes available:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+          OS_MAJOR=$(sw_vers -productVersion | cut -d. -f1)
+          # Apple realigned version numbers at 26: Xcode 16 pairs with
+          # macOS 15, but Xcode 26 and later need macOS 26 or later. So the
+          # only exclusion is an Xcode 26+ on an older OS.
           XCODE=$(ls -d /Applications/Xcode_[0-9]*.app 2>/dev/null \
-            | grep -v -i beta | sort -V | tail -1)
+            | grep -vi beta \
+            | awk -F'Xcode_' -v m="$OS_MAJOR" \
+                '{split($2, v, "."); if (v[1] + 0 < 26 || m + 0 >= 26) print}' \
+            | sort -V | tail -1)
           if [ -z "$XCODE" ]; then
-            echo "error: no Xcode found on the runner" >&2
+            echo "error: no Xcode on this runner can run on macOS $OS_MAJOR" >&2
             exit 1
           fi
           echo "Selecting $XCODE"
           sudo xcode-select -s "$XCODE"
           swift --version
-          SWIFT_MINOR=$(swift --version 2>&1 \
+          SWIFT_VER=$(swift --version 2>&1 \
             | sed -n 's/.*Apple Swift version \([0-9]*\)\.\([0-9]*\).*/\1\2/p' | head -1)
-          if [ "${SWIFT_MINOR:-0}" -lt 61 ]; then
-            echo "error: Swift 6.1+ required (SwaTex needs swift-tools-version 6.1)" >&2
+          if [ "${SWIFT_VER:-0}" -lt 61 ]; then
+            echo "error: Swift 6.1+ required (SwaTex needs swift-tools-version 6.1)," >&2
+            echo "but $XCODE provides $(swift --version 2>&1 | head -1)" >&2
             exit 1
           fi
 
