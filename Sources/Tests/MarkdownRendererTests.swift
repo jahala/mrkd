@@ -41,6 +41,57 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(result.string.contains("\u{201C}great\u{201D}"), "double quotes must curl")
     }
 
+    func testRenderDoesNotCrashWhenEmojiPrecedesLaterBlock() {
+        // Regression test: applyContextualSpacing indexed the attributed
+        // string's UTF-16 length into a Swift String by Character offset.
+        // An emoji (two UTF-16 code units, one Character) before a later
+        // block made the offset exceed the character count and trap with
+        // "String index is out of bounds".
+        let markdown = "👍 note\n\nparagraph two"
+        let result = MarkdownRenderer.render(markdown)
+        XCTAssertTrue(result.string.contains("paragraph two"))
+
+        // The later paragraph must still receive its contextual spacing.
+        var spacingApplied = false
+        result.enumerateAttribute(
+            .paragraphStyle,
+            in: NSRange(location: 0, length: result.length)
+        ) { value, _, _ in
+            if let style = value as? NSParagraphStyle,
+               style.paragraphSpacingBefore > 0 {
+                spacingApplied = true
+            }
+        }
+        XCTAssertTrue(spacingApplied, "second paragraph must get spacingBefore")
+    }
+
+    func testRenderSurvivesEmojiInsideLongerDocument() {
+        // Wider regression sweep: emoji in headings, lists, code fences and
+        // blockquotes, all followed by blocks that need contextual spacing.
+        // Separator string keeps the raw literal from collapsing leading
+        // whitespace per line.
+        let markdown = #"""
+        # 🏔️ 山
+
+        - 条目 📌
+        - 再一条
+
+        > 引用 🐱
+
+        ```swift
+        let x = 1 // 🌈
+        ```
+
+        | A | B |
+        |---|--|
+        | ✨ | ✅ |
+
+        ## 结尾段落
+        """#
+        let result = MarkdownRenderer.render(markdown)
+        XCTAssertTrue(result.string.contains("结尾段落"))
+    }
+
     func testSmartTypographySkippedWhenThemeOptsOut() {
         struct NoSmart: Theme {
             let name = "NoSmart"
