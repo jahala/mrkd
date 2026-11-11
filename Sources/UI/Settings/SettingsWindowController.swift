@@ -16,6 +16,17 @@ final class SettingsWindowController: NSWindowController {
     private var bodyFontSizePopUpButton: NSPopUpButton!
     private var codeFontPopUpButton: NSPopUpButton!
     private var commandLineStatusLabel: NSTextField!
+    private var quickLookStatusLabel: NSTextField!
+    private var quickLookActionButton: NSButton!
+    private var quickLookCheckbox: NSButton!
+
+    /// The last check's answer, which the Fix button acts on.
+    private var quickLookReport: QuickLookReport?
+    private var quickLookRequest = 0
+    /// While a repair runs, reopening Settings does not start a second check:
+    /// it would read the registrations half-changed and replace the repair's
+    /// own result, including any failure, before the user saw it.
+    private var quickLookRepairRunning = false
 
     /// Starts unknown: a GUI app inherits launchd's PATH, not the user's, so
     /// the real answer has to be fetched from the login shell.
@@ -101,6 +112,12 @@ final class SettingsWindowController: NSWindowController {
 
         let commandLineRow = createCommandLineRow()
 
+        let quickLookSectionLabel = NSTextField(labelWithString: "Quick Look")
+        quickLookSectionLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        quickLookSectionLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let quickLookRow = createQuickLookRow()
+
         stackView.addArrangedSubview(themeSectionLabel)
         stackView.addArrangedSubview(themePickerGrid)
         stackView.addArrangedSubview(bodyFontRow)
@@ -109,6 +126,9 @@ final class SettingsWindowController: NSWindowController {
         stackView.setCustomSpacing(28, after: codeFontRow)
         stackView.addArrangedSubview(commandLineSectionLabel)
         stackView.addArrangedSubview(commandLineRow)
+        stackView.setCustomSpacing(28, after: commandLineRow)
+        stackView.addArrangedSubview(quickLookSectionLabel)
+        stackView.addArrangedSubview(quickLookRow)
 
         // Wrap in a scroll view so all content is reachable
         let scrollView = NSScrollView()
@@ -382,6 +402,111 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
+    // MARK: - Quick Look
+
+    private func createQuickLookRow() -> NSView {
+        let description = NSTextField(wrappingLabelWithString:
+            "Press Space on a Markdown file in Finder to preview it with mrkd. "
+            + "This checks that macOS uses this copy of mrkd for that preview.")
+        description.font = .systemFont(ofSize: 11)
+        description.textColor = .secondaryLabelColor
+
+        let status = NSTextField(wrappingLabelWithString: "Checking Quick Look…")
+        status.font = .systemFont(ofSize: 11)
+        status.textColor = .secondaryLabelColor
+        status.isSelectable = true
+        quickLookStatusLabel = status
+
+        let button = NSButton(title: "Fix", target: self, action: #selector(repairQuickLook(_:)))
+        button.bezelStyle = .rounded
+        button.isHidden = true
+        quickLookActionButton = button
+
+        let checkbox = NSButton(
+            checkboxWithTitle: "Check Quick Look when mrkd starts",
+            target: self,
+            action: #selector(quickLookCheckAtLaunchChanged(_:))
+        )
+        quickLookCheckbox = checkbox
+
+        // A stack rather than fixed constraints: the button is hidden when
+        // there is nothing to fix, and a hidden arranged view takes no space.
+        let row = NSStackView(views: [description, status, button, checkbox])
+        row.orientation = .vertical
+        row.alignment = .leading
+        row.spacing = 8
+        row.setCustomSpacing(10, after: description)
+        row.setCustomSpacing(12, after: button)
+        row.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            description.widthAnchor.constraint(equalToConstant: 520),
+            status.widthAnchor.constraint(equalToConstant: 520),
+        ])
+
+        refreshQuickLookCheckbox()
+        return row
+    }
+
+    private var appURL: URL { Bundle.main.bundleURL }
+
+    private func refreshQuickLookCheckbox() {
+        quickLookCheckbox.state = QuickLookCheckPreferences(defaults: .standard).checksAtLaunch ? .on : .off
+    }
+
+    /// Runs the check off the main thread and shows the answer. Each request
+    /// is numbered and only the newest one's answer is shown, so a slow check
+    /// cannot overwrite the result of a repair that finished after it.
+    private func refreshQuickLookStatus(repair steps: [QuickLookStep]? = nil) {
+        guard !quickLookRepairRunning else { return }
+        quickLookRequest += 1
+        let request = quickLookRequest
+        let appURL = appURL
+
+        quickLookActionButton.isEnabled = false
+        if steps != nil {
+            quickLookRepairRunning = true
+            quickLookStatusLabel.stringValue = "Fixing Quick Look…"
+        }
+
+        Task.detached(priority: .userInitiated) {
+            let failure = steps.flatMap { QuickLookMaintenance.perform($0) }
+            let report = QuickLookMaintenance.check(appURL: appURL)
+            await MainActor.run { [weak self] in
+                guard let self, request == self.quickLookRequest else { return }
+                self.quickLookRepairRunning = false
+                self.showQuickLook(report, repairFailure: failure)
+            }
+        }
+    }
+
+    private func showQuickLook(_ report: QuickLookReport, repairFailure: String?) {
+        quickLookReport = report
+
+        var text = QuickLookCheck.statusText(report, homeDirectory: URL(fileURLWithPath: NSHomeDirectory()))
+        if let repairFailure {
+            text = "The fix did not finish. \(repairFailure).\n\n" + text
+        }
+        quickLookStatusLabel.stringValue = text
+
+        if let title = QuickLookCheck.actionTitle(report.registration) {
+            quickLookActionButton.title = title
+            quickLookActionButton.isHidden = false
+            quickLookActionButton.isEnabled = true
+        } else {
+            quickLookActionButton.isHidden = true
+        }
+    }
+
+    @objc private func repairQuickLook(_ sender: NSButton) {
+        guard let report = quickLookReport else { return }
+        refreshQuickLookStatus(repair: QuickLookCheck.repairSteps(for: report, appPath: appURL.path))
+    }
+
+    @objc private func quickLookCheckAtLaunchChanged(_ sender: NSButton) {
+        QuickLookCheckPreferences(defaults: .standard).checksAtLaunch = sender.state == .on
+    }
+
     // MARK: - Actions
 
     @objc private func bodyFontChanged(_ sender: NSPopUpButton) {
@@ -507,6 +632,8 @@ final class SettingsWindowController: NSWindowController {
 
         refreshCommandLineStatus()
         probeShellPathIfNeeded()
+        refreshQuickLookCheckbox()
+        refreshQuickLookStatus()
     }
 
     deinit {

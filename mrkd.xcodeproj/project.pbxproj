@@ -24,6 +24,7 @@
 		1E6730488D8937927510A98E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F7DA5188A6D96A2D7C7918 /* AppDelegate.swift */; };
 		22F5DD9C3ECCF02EA541AE26 /* StdinCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 628BAEF24EDAA847B8EE2382 /* StdinCapsule.swift */; };
 		230ED50489344C777EEA3746 /* DeferredAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D996D976724971CE0086843B /* DeferredAttachment.swift */; };
+		239823BC0154D75F4F6DA93B /* QuickLookCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239AF839484A629154AB70FF /* QuickLookCheck.swift */; };
 		24A7B55431FB1C6E3E871578 /* MermaidThemePayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BE4B9BA85C37A208DED6B62 /* MermaidThemePayload.swift */; };
 		291699A7C9E50C9920FA703F /* SwaTex in Frameworks */ = {isa = PBXBuildFile; productRef = 7A804A6D88B373FC1560AE23 /* SwaTex */; };
 		2D9CDDA1F160FE2DE75724B1 /* ScrollAheadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D6F2B60A15669C8EA103CF /* ScrollAheadController.swift */; };
@@ -122,6 +123,7 @@
 		EE028C6E2283B3D080126EFD /* CLIInvocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35C1E195168BF1697D1E5F1 /* CLIInvocation.swift */; };
 		EEF4F63432A27FCAE6CA1A87 /* SmartTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100CE565A885D5D926239003 /* SmartTypography.swift */; };
 		EFDC191B338C1032E5DE3BD7 /* BlockSplitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8B4B138B0EA417DF1AD8AA /* BlockSplitter.swift */; };
+		F013A72337EDFD65E360BC98 /* QuickLookMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F882C326EB4AB84C289FD6 /* QuickLookMaintenance.swift */; };
 		F26FC29D7745A908671F1C8C /* MemoryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5535CA3142DB51FD8F75768E /* MemoryMonitor.swift */; };
 		F2B03BE8DE3E0AB7BCD5F9A4 /* ThemeImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FC9E3E925851D83C58DD48 /* ThemeImporter.swift */; };
 		F5F59335E071C62C9342BFC5 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 23D7AB178DFD0D6BC307F920 /* AppIcon.icon */; };
@@ -182,6 +184,7 @@
 		1B9C15BB191CEC030B6D3BE4 /* FileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcher.swift; sourceTree = "<group>"; };
 		1BE4B9BA85C37A208DED6B62 /* MermaidThemePayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidThemePayload.swift; sourceTree = "<group>"; };
 		2035F88E0EA02DBC4A97D9AE /* MermaidRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderer.swift; sourceTree = "<group>"; };
+		239AF839484A629154AB70FF /* QuickLookCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookCheck.swift; sourceTree = "<group>"; };
 		23D7AB178DFD0D6BC307F920 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		26FC9E3E925851D83C58DD48 /* ThemeImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeImporter.swift; sourceTree = "<group>"; };
 		28D29166E800D589137CBB78 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -190,6 +193,7 @@
 		3A7A27ACAA03302046BE6CAE /* FontSizeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSizeManager.swift; sourceTree = "<group>"; };
 		437DE2F777A0EB81EA791470 /* FileReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileReader.swift; sourceTree = "<group>"; };
 		48BCF30227B4553AC563593C /* TOCFloatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOCFloatingView.swift; sourceTree = "<group>"; };
+		49F882C326EB4AB84C289FD6 /* QuickLookMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookMaintenance.swift; sourceTree = "<group>"; };
 		4BC66C785F405D66D8E1C601 /* FragmentLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FragmentLinkHandler.swift; sourceTree = "<group>"; };
 		4FFA414F0D9903EAEDA54423 /* CLIEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIEntryPoint.swift; sourceTree = "<group>"; };
 		51D6F2B60A15669C8EA103CF /* ScrollAheadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollAheadController.swift; sourceTree = "<group>"; };
@@ -329,6 +333,8 @@
 				E4B185371B65EAC6DDFFD12F /* LauncherInstallation.swift */,
 				A9F211E3BEA3B30B9E75F4D9 /* LaunchTimer.swift */,
 				9522C78563FA0B4727357252 /* LoginShellPath.swift */,
+				239AF839484A629154AB70FF /* QuickLookCheck.swift */,
+				49F882C326EB4AB84C289FD6 /* QuickLookMaintenance.swift */,
 				AE856855288507E50F189F3F /* WindowManager.swift */,
 				B80534455392FEF151CAC14A /* WindowSizer.swift */,
 			);
@@ -656,6 +662,8 @@
 				9098F196BBC3F5109640D593 /* MermaidThemePayload.swift in Sources */,
 				32F51FA820DA4139DA08BCDA /* MonokaiTheme.swift in Sources */,
 				9A610A574B861A6ED4C98FE2 /* OpenWithButton.swift in Sources */,
+				239823BC0154D75F4F6DA93B /* QuickLookCheck.swift in Sources */,
+				F013A72337EDFD65E360BC98 /* QuickLookMaintenance.swift in Sources */,
 				4441DC177438ED8E3FCBD7EC /* RecentDocuments.swift in Sources */,
 				4E595406D176D3D95B2DAC8B /* ReloadBannerView.swift in Sources */,
 				B11CA5BED7387E2D23BAD074 /* RenderPipeline.swift in Sources */,
