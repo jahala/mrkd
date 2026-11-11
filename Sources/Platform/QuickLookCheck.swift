@@ -253,6 +253,29 @@ enum QuickLookCheck {
         return CommandLineLauncher.displayPath(URL(fileURLWithPath: app, isDirectory: true), homeDirectory: homeDirectory)
     }
 
+    /// What the Settings row shows: a status of a word or two, and a short
+    /// note when previews can't use mrkd's fonts. The full `statusText` goes
+    /// in the row's tooltip and in the launch alert.
+    struct SettingsLabel: Equatable {
+        let status: String
+        let note: String?
+    }
+
+    static func settingsLabel(_ report: QuickLookReport) -> SettingsLabel {
+        let status: String
+        switch report.registration {
+        case .healthy: status = "Working"
+        case .notRegistered: status = "Not set up"
+        case .disabled: status = "Turned off"
+        case .otherCopies: status = "Another copy of mrkd may be used"
+        case .couldNotCheck: status = "Couldn’t check"
+        }
+        let note = report.outsideApplications
+            ? "Previews use the system font until mrkd is in Applications."
+            : nil
+        return SettingsLabel(status: status, note: note)
+    }
+
     /// The button for a status, or nil when there is nothing a button can do.
     static func actionTitle(_ status: QuickLookRegistrationStatus) -> String? {
         switch status {

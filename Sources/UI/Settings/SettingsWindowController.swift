@@ -17,6 +17,7 @@ final class SettingsWindowController: NSWindowController {
     private var codeFontPopUpButton: NSPopUpButton!
     private var commandLineStatusLabel: NSTextField!
     private var quickLookStatusLabel: NSTextField!
+    private var quickLookNoteLabel: NSTextField!
     private var quickLookActionButton: NSButton!
     private var quickLookCheckbox: NSButton!
 
@@ -405,44 +406,42 @@ final class SettingsWindowController: NSWindowController {
     // MARK: - Quick Look
 
     private func createQuickLookRow() -> NSView {
-        let description = NSTextField(wrappingLabelWithString:
-            "Press Space on a Markdown file in Finder to preview it with mrkd. "
-            + "This checks that macOS uses this copy of mrkd for that preview.")
-        description.font = .systemFont(ofSize: 11)
-        description.textColor = .secondaryLabelColor
-
-        let status = NSTextField(wrappingLabelWithString: "Checking Quick Look…")
-        status.font = .systemFont(ofSize: 11)
-        status.textColor = .secondaryLabelColor
-        status.isSelectable = true
+        let status = NSTextField(labelWithString: "Checking…")
+        status.font = .systemFont(ofSize: 13)
         quickLookStatusLabel = status
 
         let button = NSButton(title: "Fix", target: self, action: #selector(repairQuickLook(_:)))
         button.bezelStyle = .rounded
+        button.controlSize = .small
         button.isHidden = true
         quickLookActionButton = button
 
+        let note = NSTextField(labelWithString: "")
+        note.font = .systemFont(ofSize: 11)
+        note.textColor = .secondaryLabelColor
+        note.isHidden = true
+        quickLookNoteLabel = note
+
         let checkbox = NSButton(
-            checkboxWithTitle: "Check Quick Look when mrkd starts",
+            checkboxWithTitle: "Check when mrkd starts",
             target: self,
             action: #selector(quickLookCheckAtLaunchChanged(_:))
         )
         quickLookCheckbox = checkbox
 
-        // A stack rather than fixed constraints: the button is hidden when
-        // there is nothing to fix, and a hidden arranged view takes no space.
-        let row = NSStackView(views: [description, status, button, checkbox])
+        // The button sits beside the status it acts on. Stacks, because a
+        // hidden arranged view takes no space.
+        let statusLine = NSStackView(views: [status, button])
+        statusLine.orientation = .horizontal
+        statusLine.alignment = .centerY
+        statusLine.spacing = 10
+
+        let row = NSStackView(views: [statusLine, note, checkbox])
         row.orientation = .vertical
         row.alignment = .leading
-        row.spacing = 8
-        row.setCustomSpacing(10, after: description)
-        row.setCustomSpacing(12, after: button)
+        row.spacing = 6
+        row.setCustomSpacing(10, after: note)
         row.translatesAutoresizingMaskIntoConstraints = false
-
-        NSLayoutConstraint.activate([
-            description.widthAnchor.constraint(equalToConstant: 520),
-            status.widthAnchor.constraint(equalToConstant: 520),
-        ])
 
         refreshQuickLookCheckbox()
         return row
@@ -466,7 +465,7 @@ final class SettingsWindowController: NSWindowController {
         quickLookActionButton.isEnabled = false
         if steps != nil {
             quickLookRepairRunning = true
-            quickLookStatusLabel.stringValue = "Fixing Quick Look…"
+            quickLookStatusLabel.stringValue = "Fixing…"
         }
 
         Task.detached(priority: .userInitiated) {
@@ -483,11 +482,18 @@ final class SettingsWindowController: NSWindowController {
     private func showQuickLook(_ report: QuickLookReport, repairFailure: String?) {
         quickLookReport = report
 
-        var text = QuickLookCheck.statusText(report, homeDirectory: URL(fileURLWithPath: NSHomeDirectory()))
+        // The row stays short. The full explanation is one hover away.
+        var details = QuickLookCheck.statusText(report, homeDirectory: URL(fileURLWithPath: NSHomeDirectory()))
+        let label = QuickLookCheck.settingsLabel(report)
         if let repairFailure {
-            text = "The fix did not finish. \(repairFailure).\n\n" + text
+            details = "The fix did not finish. \(repairFailure).\n\n" + details
+            quickLookStatusLabel.stringValue = "Fix didn’t work"
+        } else {
+            quickLookStatusLabel.stringValue = label.status
         }
-        quickLookStatusLabel.stringValue = text
+        quickLookStatusLabel.toolTip = details
+        quickLookNoteLabel.stringValue = label.note ?? ""
+        quickLookNoteLabel.isHidden = label.note == nil
 
         if let title = QuickLookCheck.actionTitle(report.registration) {
             quickLookActionButton.title = title

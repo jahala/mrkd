@@ -244,6 +244,24 @@ final class QuickLookCheckTests: XCTestCase {
         XCTAssertTrue(QuickLookCheck.statusText(result, homeDirectory: Self.home).contains("pluginkit exited with status 1."))
     }
 
+    /// Settings shows a word or two and a button. The full explanation is
+    /// for the tooltip and the launch alert, never the panel itself.
+    func testSettingsShowsAShortStatus() {
+        let other = QuickLookRegistration(election: .use, version: "1.3.5", path: Self.appex(Self.installed))
+        func label(_ status: QuickLookRegistrationStatus, outside: Bool = false) -> QuickLookCheck.SettingsLabel {
+            QuickLookCheck.settingsLabel(QuickLookReport(registration: status, outsideApplications: outside))
+        }
+        XCTAssertEqual(label(.healthy), .init(status: "Working", note: nil))
+        XCTAssertEqual(label(.notRegistered), .init(status: "Not set up", note: nil))
+        XCTAssertEqual(label(.disabled), .init(status: "Turned off", note: nil))
+        XCTAssertEqual(label(.otherCopies([other])), .init(status: "Another copy of mrkd may be used", note: nil))
+        XCTAssertEqual(label(.couldNotCheck("pkd is not running.")), .init(status: "Couldn’t check", note: nil))
+        XCTAssertEqual(
+            label(.healthy, outside: true),
+            .init(status: "Working", note: "Previews use the system font until mrkd is in Applications.")
+        )
+    }
+
     func testEachStatusHasItsOwnAction() {
         let other = QuickLookRegistration(election: .use, version: "1.3.5", path: Self.appex(Self.installed))
         XCTAssertNil(QuickLookCheck.actionTitle(.healthy))
