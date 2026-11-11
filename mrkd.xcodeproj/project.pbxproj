@@ -89,6 +89,7 @@
 		ADE0DFFB0A8020855F410C8D /* Debouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53701BEDA3F06284FAD55B85 /* Debouncer.swift */; };
 		AFD8CC97AA50129D9A190AF7 /* FragmentLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BC66C785F405D66D8E1C601 /* FragmentLinkHandler.swift */; };
 		B11CA5BED7387E2D23BAD074 /* RenderPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66718D25392A612CE84695D /* RenderPipeline.swift */; };
+		B5C9E78660215337933301CB /* MutedText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0698283CF7052355C4F7E980 /* MutedText.swift */; };
 		B7AAB09FFC499088E8E3AF28 /* DiagramAttachmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0532C3D9D368F35DD2023F28 /* DiagramAttachmentProvider.swift */; };
 		BA4C2BB65B18B6B5C7D29D23 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D29166E800D589137CBB78 /* main.swift */; };
 		BCBDBE1EF6C89CF1B7C45E4E /* MathAttachmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49334C3E9450C88EFD0F331 /* MathAttachmentProvider.swift */; };
@@ -117,6 +118,7 @@
 		E1967C79DE8B3B82A3BB0393 /* BundledFonts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4380B13754851EF75E51A0 /* BundledFonts.swift */; };
 		E43B870285F7463DEB0E9F25 /* SwaTexRender in Frameworks */ = {isa = PBXBuildFile; productRef = 3D05AB97BCF69C9ED47F8D83 /* SwaTexRender */; };
 		E6432E8025AD05C91014DCBA /* MonokaiTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CA6E5F5D620288AAD4FEAE /* MonokaiTheme.swift */; };
+		E99726370E9F1DBE792FF168 /* MutedText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0698283CF7052355C4F7E980 /* MutedText.swift */; };
 		E9C3AB8D66F3EDC3F6B371B5 /* DocumentIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0265860C1EF27518A6EBF866 /* DocumentIdentity.swift */; };
 		EB2BD931534E8A8B37507745 /* SwaTexRender in Frameworks */ = {isa = PBXBuildFile; productRef = D3CC4C6DE6BD3C59FB5BCEE4 /* SwaTexRender */; };
 		EC8C2657F62BE8D673B4925F /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15D2C41833550F78C1030518 /* MarkdownRenderer.swift */; };
@@ -173,6 +175,7 @@
 		0532C3D9D368F35DD2023F28 /* DiagramAttachmentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramAttachmentProvider.swift; sourceTree = "<group>"; };
 		06152D09C5B8FFD4E939255B /* DocumentFindController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentFindController.swift; sourceTree = "<group>"; };
 		0644988ADABEF7A324F3DB95 /* ReloadBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReloadBannerView.swift; sourceTree = "<group>"; };
+		0698283CF7052355C4F7E980 /* MutedText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutedText.swift; sourceTree = "<group>"; };
 		0A0543EFCA5B44B027AA4642 /* ChangedBlockGutterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangedBlockGutterView.swift; sourceTree = "<group>"; };
 		0B8B4B138B0EA417DF1AD8AA /* BlockSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockSplitter.swift; sourceTree = "<group>"; };
 		0BEF4EC19CCD6BC11DF88F49 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -426,6 +429,7 @@
 				36E3A571DA44689ED8D23C2F /* MathSpanScanner.swift */,
 				2035F88E0EA02DBC4A97D9AE /* MermaidRenderer.swift */,
 				1BE4B9BA85C37A208DED6B62 /* MermaidThemePayload.swift */,
+				0698283CF7052355C4F7E980 /* MutedText.swift */,
 				634219F6759999DFA584FB26 /* RecentDocuments.swift */,
 				F35BF18877FD34428A46F4E8 /* ScrollAnchoring.swift */,
 				100CE565A885D5D926239003 /* SmartTypography.swift */,
@@ -598,6 +602,7 @@
 				37035A572DDD91BA3690B7D3 /* MermaidRenderer.swift in Sources */,
 				24A7B55431FB1C6E3E871578 /* MermaidThemePayload.swift in Sources */,
 				E6432E8025AD05C91014DCBA /* MonokaiTheme.swift in Sources */,
+				B5C9E78660215337933301CB /* MutedText.swift in Sources */,
 				D05CE920CB61E4BA3085DD2B /* OpenWithButton.swift in Sources */,
 				61858144340601E98AB081D5 /* PreviewViewController.swift in Sources */,
 				11B3BE05D61B683CEF88A2CA /* RecentDocuments.swift in Sources */,
@@ -661,6 +666,7 @@
 				FE7FA29C257CB0CEFE7A6C44 /* MermaidRenderer.swift in Sources */,
 				9098F196BBC3F5109640D593 /* MermaidThemePayload.swift in Sources */,
 				32F51FA820DA4139DA08BCDA /* MonokaiTheme.swift in Sources */,
+				E99726370E9F1DBE792FF168 /* MutedText.swift in Sources */,
 				9A610A574B861A6ED4C98FE2 /* OpenWithButton.swift in Sources */,
 				4441DC177438ED8E3FCBD7EC /* RecentDocuments.swift in Sources */,
 				4E595406D176D3D95B2DAC8B /* ReloadBannerView.swift in Sources */,

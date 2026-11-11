@@ -65,6 +65,18 @@ enum AgentTags {
         return isHTMLElement(name) ? nil : name
     }
 
+    // MARK: - Reasoning
+
+    /// Tags that hold an agent's reasoning rather than what it hands over.
+    /// They render muted, the way agent apps show thinking.
+    static func isReasoning(_ name: String) -> Bool {
+        reasoningNames.contains(name.lowercased())
+    }
+
+    private static let reasoningNames: Set<String> = [
+        "thinking", "think", "thought", "thoughts", "reasoning", "scratchpad", "reflection",
+    ]
+
     // MARK: - HTML elements
 
     /// HTML tag names are case-insensitive, so `<DIV>` is still a div.

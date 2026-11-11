@@ -246,9 +246,9 @@ final class AgentTagBlockTests: XCTestCase {
 
     func testTheBoxIsDrawnInTheThemesOwnColours() {
         for theme in [DefaultTheme(), GitHubDark(), HighContrastTheme(wrapping: GitHubLight())] as [Theme] {
-            let rendered = render("<thinking>\nText.\n</thinking>", theme: theme)
-            guard let box = box(labelled: "thinking", in: rendered),
-                  let label = location(of: "thinking", in: rendered) else {
+            let rendered = render("<example>\nText.\n</example>", theme: theme)
+            guard let box = box(labelled: "example", in: rendered),
+                  let label = location(of: "example", in: rendered) else {
                 return XCTFail("no box for \(theme.name)")
             }
             XCTAssertEqual(box.borderColor(for: .minX), theme.blockquoteBarColor, theme.name)
@@ -260,5 +260,74 @@ final class AgentTagBlockTests: XCTestCase {
                 "the label is body text colour, which every theme already holds to AA (\(theme.name))"
             )
         }
+    }
+
+    /// An agent's reasoning is not what it hands over, so it sits back from
+    /// the page: a grey fill and muted text, as agent apps show thinking.
+    func testReasoningIsMutedOnAGreyFill() {
+        for name in ["thinking", "think", "reasoning", "scratchpad", "Thinking"] {
+            let theme = GitHubDark()
+            let rendered = render("<\(name)>\nWorking it out.\n</\(name)>\n\nThe answer.", theme: theme)
+            guard let box = box(labelled: name, in: rendered),
+                  let text = location(of: "Working it out.", in: rendered),
+                  let answer = location(of: "The answer.", in: rendered) else {
+                return XCTFail("no box for <\(name)>")
+            }
+            XCTAssertEqual(box.backgroundColor, theme.codeBackgroundColor, name)
+            XCTAssertEqual(box.width(for: .border, edge: .minX), 0, "a fill, not an outline (\(name))")
+            let muted = rendered.attribute(.foregroundColor, at: text, effectiveRange: nil) as? NSColor
+            XCTAssertNotNil(muted, name)
+            XCTAssertNotEqual(muted, theme.textColor, "reasoning is muted (\(name))")
+            XCTAssertEqual(rendered.attribute(.foregroundColor, at: answer, effectiveRange: nil) as? NSColor,
+                           theme.textColor, "only the reasoning is muted (\(name))")
+        }
+    }
+
+    /// Muted is not unreadable: the muted text on the grey fill still meets
+    /// WCAG AA (4.5:1) in every built-in theme, light and dark.
+    func testMutedReasoningTextMeetsAAInEveryTheme() {
+        let themes: [Theme] = [
+            DefaultTheme(), GitHubLight(), GitHubDark(), MonokaiTheme(), CatppuccinMochaTheme(), SnazzyTheme(),
+            HighContrastTheme(wrapping: GitHubLight()), HighContrastTheme(wrapping: GitHubDark()),
+        ]
+        for theme in themes {
+            let rendered = render("<thinking>\nWorking it out.\n</thinking>", theme: theme)
+            guard let box = box(labelled: "thinking", in: rendered),
+                  let at = location(of: "Working it out.", in: rendered),
+                  let muted = rendered.attribute(.foregroundColor, at: at, effectiveRange: nil) as? NSColor,
+                  let fillColor = box.backgroundColor else {
+                return XCTFail("no muted box for \(theme.name)")
+            }
+            for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+                NSAppearance(named: appearanceName)!.performAsCurrentDrawingAppearance {
+                    let page = Self.opaque(theme.backgroundColor, over: .white)
+                    let fill = Self.opaque(fillColor, over: page)
+                    let text = Self.opaque(muted, over: fill)
+                    let full = Self.opaque(theme.textColor, over: fill)
+                    let ratio = Self.contrast(text, fill)
+                    XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(theme.name) in \(appearanceName.rawValue): \(ratio)")
+                    XCTAssertLessThan(ratio, Self.contrast(full, fill),
+                                      "muted must be quieter than body text (\(theme.name), \(appearanceName.rawValue))")
+                }
+            }
+        }
+    }
+
+    private static func opaque(_ color: NSColor, over base: NSColor) -> NSColor {
+        let c = color.usingColorSpace(.sRGB)!, b = base.usingColorSpace(.sRGB)!
+        let a = c.alphaComponent
+        return NSColor(srgbRed: c.redComponent * a + b.redComponent * (1 - a),
+                       green: c.greenComponent * a + b.greenComponent * (1 - a),
+                       blue: c.blueComponent * a + b.blueComponent * (1 - a), alpha: 1)
+    }
+
+    private static func contrast(_ x: NSColor, _ y: NSColor) -> CGFloat {
+        func luminance(_ color: NSColor) -> CGFloat {
+            let c = color.usingColorSpace(.sRGB)!
+            func channel(_ v: CGFloat) -> CGFloat { v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+            return 0.2126 * channel(c.redComponent) + 0.7152 * channel(c.greenComponent) + 0.0722 * channel(c.blueComponent)
+        }
+        let (l1, l2) = (luminance(x), luminance(y))
+        return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
     }
 }

@@ -1407,8 +1407,10 @@ enum MarkdownRenderer {
 
     /// An agent tag pair as a box: the tag name as a label, then the blocks
     /// between the tags, rendered as any other markdown. The tags themselves
-    /// do not show. The box is neutral, with no colour of its own, because
-    /// tag names are open-ended and none means more than another.
+    /// do not show. Most boxes are a neutral outline, because tag names are
+    /// open-ended and none means more than another. Reasoning (`<thinking>`
+    /// and its kin) is the exception: it is not what the agent hands over,
+    /// so it sits back on a grey fill in muted text.
     private static func renderTagBox(
         _ pair: AgentTags.Pair,
         contents first: CMarkNode?,
@@ -1444,13 +1446,29 @@ enum MarkdownRenderer {
             boxEnd -= 1
         }
 
-        // A full outline, heavier on the left as a GitHub alert is, drawn
-        // in the colour the theme gives a blockquote's bar. No fill, so a
-        // code block or table inside keeps its own background.
         let block = NSTextBlock()
-        block.setBorderColor(theme.blockquoteBarColor)
-        block.setWidth(1, type: .absoluteValueType, for: .border)
-        block.setWidth(3, type: .absoluteValueType, for: .border, edge: .minX)
+        if AgentTags.isReasoning(pair.name) {
+            // The code background is the theme's own quiet grey. The text
+            // fades toward it only as far as it stays readable, and the label
+            // goes with it, as a blockquote's text does.
+            block.backgroundColor = theme.codeBackgroundColor
+            result.addAttribute(
+                .foregroundColor,
+                value: MutedText.color(
+                    text: theme.textColor,
+                    fill: theme.codeBackgroundColor,
+                    page: theme.backgroundColor
+                ),
+                range: NSRange(location: boxStart, length: boxEnd - boxStart)
+            )
+        } else {
+            // A full outline, heavier on the left as an alert is, drawn in
+            // the colour the theme gives a blockquote's bar. No fill, so a
+            // code block or table inside keeps its own background.
+            block.setBorderColor(theme.blockquoteBarColor)
+            block.setWidth(1, type: .absoluteValueType, for: .border)
+            block.setWidth(3, type: .absoluteValueType, for: .border, edge: .minX)
+        }
         block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .minX)
         block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .maxX)
         block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .minY)
