@@ -1074,12 +1074,18 @@ enum MarkdownRenderer {
         }
 
         let text = result.string
-        let startIdx = text.index(text.startIndex, offsetBy: startPosition)
+        // startPosition comes from result.length, which counts UTF-16 code
+        // units. Index a Swift String by UTF-16 offset, not Character
+        // offset: any supplementary-plane character (e.g. an emoji) already
+        // rendered makes those two counts diverge, and a Character offset
+        // past the end traps with "String index is out of bounds".
+        let startIdx = String.Index(utf16Offset: startPosition, in: text)
         guard startIdx < text.endIndex else { return }
 
         // Find the first newline to determine the first paragraph's range
         let endIdx = text[startIdx...].firstIndex(of: "\n") ?? text.endIndex
-        let firstParaLength = text.distance(from: startIdx, to: endIdx)
+        // NSRange lengths are UTF-16 too — measure in the UTF-16 view.
+        let firstParaLength = text.utf16.distance(from: startIdx, to: endIdx)
 
         guard firstParaLength > 0 else { return }
 
