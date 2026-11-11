@@ -22,6 +22,17 @@ final class SmartTypographyTests: XCTestCase {
         XCTAssertTrue(result.contains("paused\u{2014}then"), "got: \(result)")
     }
 
+    /// A line of nothing but hyphens is markdown syntax: a horizontal rule,
+    /// the underline of a heading, or a front matter delimiter. Turned into
+    /// an em dash, it becomes a paragraph holding one dash.
+    func testALineOfOnlyHyphensIsLeftForTheParser() {
+        XCTAssertEqual(smartenMarkdown("---"), "---")
+        XCTAssertEqual(smartenMarkdown("- - -"), "- - -")
+        XCTAssertEqual(smartenMarkdown("  -----"), "  -----")
+        XCTAssertEqual(smartenMarkdown("Section\n---"), "Section\n---")
+        XCTAssertEqual(smartenMarkdown("Wait---no.\n---"), "Wait\u{2014}no.\n---")
+    }
+
     func testDoubleHyphenBetweenDigitsBecomesEnDash() {
         let result = smartenMarkdown("pages 12--34")
         XCTAssertTrue(result.contains("12\u{2013}34"), "got: \(result)")
