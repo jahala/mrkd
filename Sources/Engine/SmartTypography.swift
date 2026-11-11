@@ -6,7 +6,9 @@ import Foundation
 ///   choosing open vs. close from preceding-character context.
 /// - `---` becomes an em-dash (—). `--` between digits or letters becomes
 ///   an en-dash (–). ` -- ` (space-dashdash-space) becomes a spaced em-dash.
-///   Other `--` runs are left alone so CLI flags (`--option`) survive.
+///   Other `--` runs are left alone so CLI flags (`--option`) survive. A
+///   line of only hyphens is left alone too: it is a rule, a heading
+///   underline or a front matter delimiter.
 /// - `...` becomes a horizontal ellipsis (…).
 ///
 /// Code is not touched: inline backtick spans `` `like this` `` and fenced
@@ -50,6 +52,20 @@ func smartenMarkdown(_ source: String) -> String {
     var linkParenDepth = 0
 
     while i < source.endIndex {
+        // A line of only hyphens is syntax, not prose: a horizontal rule, a
+        // heading underline or a front matter delimiter. As an em dash it
+        // would render as a paragraph holding one dash.
+        if codeRun == 0, linkParenDepth == 0,
+           i == source.startIndex || source[source.index(before: i)] == "\n" {
+            let lineEnd = source[i...].firstIndex(of: "\n") ?? source.endIndex
+            let line = source[i..<lineEnd]
+            if line.contains("-"), line.allSatisfy({ $0 == "-" || $0 == " " || $0 == "\t" }) {
+                result.append(contentsOf: line)
+                i = lineEnd
+                continue
+            }
+        }
+
         let c = source[i]
 
         // ---- Backtick runs (inline code spans) ----

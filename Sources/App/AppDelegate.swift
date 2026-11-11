@@ -1,5 +1,6 @@
 import AppKit
 import UniformTypeIdentifiers
+import os
 import os.signpost
 
 @MainActor
@@ -20,9 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         observeFirstRender()
 
-        // Register with Launch Services so the bundled Quick Look extension
-        // is discoverable even when the app lives outside /Applications.
-        registerWithLaunchServices()
+        checkQuickLookAtLaunch()
 
         // Build the main menu
         NSApp.mainMenu = MenuBuilder.buildMainMenu()
@@ -162,61 +161,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LaunchTimer.endPhase("AppLaunch", id: signpostID)
     }
 
-    // MARK: - Quick Look Registration
+    // MARK: - Quick Look
 
-    private func registerWithLaunchServices() {
-        guard let bundleURL = Bundle.main.bundleURL as CFURL? else { return }
-        LSRegisterURL(bundleURL, true)
+    /// Registers this copy with Launch Services, refreshes the Quick Look
+    /// extension after an update, and then, unless the user turned it off,
+    /// checks that Quick Look will really show this copy's preview.
+    ///
+    /// Launch Services registration is what makes the extension discoverable
+    /// when the app lives outside /Applications. The refresh after an update
+    /// exists because Quick Look keeps the previous extension loaded; it runs
+    /// before the check so the check sees the fresh registration.
+    private func checkQuickLookAtLaunch() {
+        let appURL = Bundle.main.bundleURL
+        LSRegisterURL(appURL as CFURL, true)
 
-        // When the app version changes, reset the Quick Look cache so macOS
-        // picks up the updated QL extension binary instead of the cached one.
         let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
         let versionKey = "\(currentVersion)-\(buildNumber)"
-        let lastVersion = UserDefaults.standard.string(forKey: "lastRegisteredVersion")
-
-        if lastVersion != versionKey {
+        let versionChanged = UserDefaults.standard.string(forKey: "lastRegisteredVersion") != versionKey
+        if versionChanged {
             UserDefaults.standard.set(versionKey, forKey: "lastRegisteredVersion")
-            refreshQuickLookExtension()
         }
-    }
 
-    /// Force macOS to pick up the updated Quick Look extension after an app update.
-    /// The QL extension runs as a separate long-lived process; simply replacing the
-    /// .app bundle doesn't cause it to reload. We need to:
-    /// 1. Re-register the appex with pluginkit
-    /// 2. Reset the Quick Look server and preview cache
-    /// 3. Kill QuickLookUIService which caches the loaded extension
-    private func refreshQuickLookExtension() {
-        Task.detached(priority: .utility) {
-            let appexPath = Bundle.main.builtInPlugInsURL?
-                .appendingPathComponent("QLPlugin.appex").path ?? ""
+        // A build without the extension inside, such as `swift run`, has
+        // nothing to refresh or check. Settings still says so when opened.
+        let appex = QuickLookCheck.appexPath(appPath: appURL.path)
+        guard FileManager.default.fileExists(atPath: appex) else { return }
 
-            // Kill the running QL extension process so macOS loads the new binary.
-            Self.runProcess("/usr/bin/killall", arguments: ["QLPlugin"])
+        let checksAtLaunch = QuickLookCheckPreferences(defaults: .standard).checksAtLaunch
+        guard versionChanged || checksAtLaunch else { return }
 
-            // Re-register the extension with the plugin system.
-            if !appexPath.isEmpty {
-                Self.runProcess("/usr/bin/pluginkit", arguments: ["-a", appexPath])
+        Task.detached(priority: .utility) { [weak self] in
+            var refreshFailure: String?
+            if versionChanged {
+                refreshFailure = QuickLookMaintenance.perform(QuickLookCheck.refreshSteps(appPath: appURL.path))
+                if let refreshFailure {
+                    Self.log.error("Quick Look refresh after update failed: \(refreshFailure, privacy: .public)")
+                }
             }
+            guard checksAtLaunch else { return }
 
-            // Reset the Quick Look server and preview cache.
-            Self.runProcess("/usr/bin/qlmanage", arguments: ["-r"])
-            Self.runProcess("/usr/bin/qlmanage", arguments: ["-r", "cache"])
-
-            // Kill the QuickLookUIService that caches loaded extensions.
-            Self.runProcess("/usr/bin/killall", arguments: ["QuickLookUIService"])
+            let report = QuickLookMaintenance.check(appURL: appURL)
+            await self?.presentQuickLookProblem(report, refreshFailure: refreshFailure, appURL: appURL)
         }
     }
 
-    private nonisolated static func runProcess(_ path: String, arguments: [String]) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        process.standardOutput = nil
-        process.standardError = nil
-        try? process.run()
-        process.waitUntilExit()
-    }
+    private nonisolated static let log = Logger(subsystem: "com.mrkd.app", category: "QuickLook")
 
+    /// One alert, only for a problem a button can fix, and not again for a
+    /// problem the user already waved away.
+    private func presentQuickLookProblem(_ report: QuickLookReport, refreshFailure: String?, appURL: URL) {
+        let preferences = QuickLookCheckPreferences(defaults: .standard)
+        let decision = QuickLookCheck.launchAlert(
+            report: report,
+            refreshFailure: refreshFailure,
+            dismissed: preferences.dismissedProblem
+        )
+        preferences.dismissedProblem = decision.dismissed
+        guard decision.show else { return }
+
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        var details = QuickLookCheck.statusText(report, homeDirectory: home)
+        if let refreshFailure {
+            details += "\n\nmrkd could not refresh Quick Look after the update: \(refreshFailure)."
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Quick Look may not show mrkd’s preview"
+        alert.informativeText = details
+        alert.addButton(withTitle: QuickLookCheck.actionTitle(report.registration) ?? "Fix")
+        alert.addButton(withTitle: "Not Now")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Don’t check Quick Look when mrkd starts"
+
+        let response = alert.runModal()
+        if alert.suppressionButton?.state == .on {
+            preferences.checksAtLaunch = false
+        }
+        guard response == .alertFirstButtonReturn else {
+            preferences.dismissedProblem = QuickLookCheck.problemKey(report)
+            return
+        }
+
+        let steps = QuickLookCheck.repairSteps(for: report, appPath: appURL.path)
+        Task.detached(priority: .userInitiated) {
+            guard let failure = QuickLookMaintenance.perform(steps) else { return }
+            await MainActor.run {
+                let failed = NSAlert()
+                failed.messageText = "Couldn’t fix Quick Look"
+                failed.informativeText = failure + "."
+                failed.runModal()
+            }
+        }
+    }
 }
