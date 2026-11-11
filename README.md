@@ -17,7 +17,7 @@ Built for reading markdown that something else is writing: open a file and it ke
 - **Themes** -- Built-in themes and import your own from iTerm2 or VS Code
 - **Typography** -- Variable font support with configurable body and code fonts (Geist, Inter, iA Writer Mono, JetBrains Mono, and more)
 - **Open With** -- Send the current file to any app on your Mac with one click
-- **Quick Look** -- Preview markdown files in Finder with your selected theme, fonts, and an Open button
+- **Quick Look** -- Preview markdown files in Finder with your selected theme, fonts, and an Open button. The preview can only reach mrkd's fonts when the app is in `/Applications`.
 - **Performance** -- Tiered rendering pipeline for files of any size
 - **Accessibility** -- VoiceOver, Full Keyboard Access, Increase Contrast, Reduce Transparency
 

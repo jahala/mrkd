@@ -11,15 +11,35 @@ import Foundation
 /// path, which is what this list is for.
 enum BundledFonts {
 
-    /// The font files in the running bundle, or nothing if it carries none.
+    /// The font files of the running app, or nothing if it carries none.
     ///
     /// Empty is a real answer rather than a failure: a build with no bundled
     /// fonts renders in the system's, which is worse-looking but not broken.
     static var urls: [URL] {
-        guard let fonts = Bundle.main.resourceURL?.appendingPathComponent("Fonts") else {
-            return []
+        fontFiles(forBundleAt: Bundle.main.bundleURL)
+    }
+
+    /// The font files of the app at `bundleURL`, or of the app it sits in.
+    ///
+    /// The fonts ship once, in the app's own Resources. The Quick Look
+    /// extension lives at mrkd.app/Contents/PlugIns/QLPlugin.appex and
+    /// carries no copy, which would cost another 9.6 MB for the same files.
+    /// So for an extension this walks out to the app around it, the same
+    /// walk its run path makes to find the Mermaid library.
+    ///
+    /// The extension is sandboxed, and the sandbox lets it read there only
+    /// when the app is in /Applications. Run from anywhere in the home
+    /// folder, such as ~/Downloads, the read is denied, the list comes back
+    /// empty, and the preview is set in the system font.
+    static func fontFiles(forBundleAt bundleURL: URL) -> [URL] {
+        var app = bundleURL
+        if app.pathExtension == "appex" {
+            app = app
+                .deletingLastPathComponent()   // mrkd.app/Contents/PlugIns
+                .deletingLastPathComponent()   // mrkd.app/Contents
+                .deletingLastPathComponent()   // mrkd.app
         }
-        return fontFiles(in: fonts)
+        return fontFiles(in: app.appendingPathComponent("Contents/Resources/Fonts"))
     }
 
     /// The TrueType files directly inside `directory`, in a stable order.
