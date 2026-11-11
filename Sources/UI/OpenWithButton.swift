@@ -15,8 +15,8 @@ final class OpenWithButton: NSView {
         button = NSButton()
         button.bezelStyle = .texturedRounded
         button.isBordered = false
-        button.title = "Open"
-        button.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: "Open")
+        button.title = "Open in"
+        button.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: "Open in")
         button.imagePosition = .imageTrailing
         button.font = NSFont.systemFont(ofSize: 12, weight: .medium)
 
@@ -73,7 +73,7 @@ final class OpenWithButton: NSView {
         ))
 
         setAccessibilityRole(.button)
-        setAccessibilityLabel("Open")
+        setAccessibilityLabel("Open in")
         setAccessibilityHelp("Opens this file in another application")
         focusRingType = .exterior
     }
@@ -106,34 +106,51 @@ final class OpenWithButton: NSView {
     // MARK: - Button Action
 
     @objc private func buttonClicked() {
-        let menu = NSMenu()
-
-        // Get applications that can open this file, excluding this app
+        // Every app that can open this file, except this one.
         let ownBundleURL = Bundle.main.bundleURL.standardizedFileURL
         let apps = NSWorkspace.shared.urlsForApplications(toOpen: fileURL)
             .filter { $0.standardizedFileURL != ownBundleURL }
 
-        if apps.isEmpty {
-            let item = NSMenuItem(title: "No applications available", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
-        } else {
-            let iconSize = NSSize(width: 16, height: 16)
-            for appURL in apps {
-                let appName = appURL.deletingPathExtension().lastPathComponent
-                let item = NSMenuItem(title: appName, action: #selector(openWithApp(_:)), keyEquivalent: "")
-                item.target = self
-                item.representedObject = appURL
-                let icon = NSWorkspace.shared.icon(forFile: appURL.path)
-                icon.size = iconSize
-                item.image = icon
-                menu.addItem(item)
-            }
+        let menu = Self.menu(listing: apps)
+        for item in menu.items where item.representedObject != nil {
+            item.target = self
+            item.action = #selector(openWithApp(_:))
         }
 
         // Show menu below the button
         let location = NSPoint(x: bounds.minX, y: bounds.minY)
         menu.popUp(positioning: nil, at: location, in: self)
+    }
+
+    /// One item per app, named and with its icon, carrying the app's URL.
+    static func menu(listing apps: [URL]) -> NSMenu {
+        let menu = NSMenu()
+        guard !apps.isEmpty else {
+            let item = NSMenuItem(title: "No applications available", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+            return menu
+        }
+
+        let iconSize = NSSize(width: 16, height: 16)
+        for appURL in apps {
+            let item = NSMenuItem(title: appURL.deletingPathExtension().lastPathComponent, action: nil, keyEquivalent: "")
+            item.representedObject = appURL
+            let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+            icon.size = iconSize
+            item.image = icon
+            // From macOS 27, AppKit hides menu item images unless asked. The
+            // icons are how people spot the app they want, so ask. Older
+            // SDKs lack the property, and apps built with them keep the
+            // images AppKit has always shown.
+            #if compiler(>=6.4)
+            if #available(macOS 27, *) {
+                item.preferredImageVisibility = .visible
+            }
+            #endif
+            menu.addItem(item)
+        }
+        return menu
     }
 
     @objc private func openWithApp(_ sender: NSMenuItem) {
