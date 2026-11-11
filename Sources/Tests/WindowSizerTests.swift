@@ -14,7 +14,9 @@ final class WindowSizerTests: XCTestCase {
 
     func testALaptopWindowOpensWideEnoughForTheSidebar() {
         // The golden ratio alone gives 1068 wide, which hides the sidebar.
-        XCTAssertEqual(size(laptop), NSSize(width: 1280, height: 791))
+        // The sidebar needs 1280, and the window opens 5 % wider than that
+        // so the page doesn't feel cramped.
+        XCTAssertEqual(size(laptop), NSSize(width: 1344, height: 831))
     }
 
     func testABigScreenKeepsTheGoldenRatioSize() {
@@ -22,8 +24,8 @@ final class WindowSizerTests: XCTestCase {
     }
 
     func testTheSidebarWidthFollowsTheReadingWidth() {
-        XCTAssertEqual(size(laptop, .narrow), NSSize(width: 1120, height: 692))
-        XCTAssertEqual(size(laptop, .wide), NSSize(width: 1520, height: 939))
+        XCTAssertEqual(size(laptop, .narrow), NSSize(width: 1176, height: 727))
+        XCTAssertEqual(size(laptop, .wide), NSSize(width: 1596, height: 986))
     }
 
     /// Full Window never shows the sidebar, so there is nothing to widen for.
@@ -33,6 +35,12 @@ final class WindowSizerTests: XCTestCase {
 
     func testAScreenTooNarrowForTheSidebarKeepsTheGoldenRatioSize() {
         XCTAssertEqual(size(NSSize(width: 1024, height: 700)), NSSize(width: 633, height: 391))
+    }
+
+    /// When the screen fits the sidebar but not the extra room, the window
+    /// takes the screen's width rather than hiding the sidebar.
+    func testTheExtraRoomGivesWayBeforeTheSidebarDoes() {
+        XCTAssertEqual(size(NSSize(width: 1300, height: 800)).width, 1300)
     }
 
     func testTheWindowNeverOutgrowsTheScreen() {
