@@ -114,16 +114,8 @@ final class MarkdownViewController: NSViewController {
         scrollView.drawsBackground = true
         scrollView.autoresizingMask = [.width, .height]
 
-        // TextKit 1 stack — TextKit 2 has layout failures with NSTextBlock
-        // (used in code blocks and tables), causing "deferral block timed out"
-        let textStorage = NSTextStorage()
-        let layoutManager = CodeBorderLayoutManager()
-        layoutManager.allowsNonContiguousLayout = true
-        textStorage.addLayoutManager(layoutManager)
-        let textContainer = NSTextContainer()
-        textContainer.widthTracksTextView = false
-        layoutManager.addTextContainer(textContainer)
-        textView = NSTextView(frame: .zero, textContainer: textContainer)
+        textView = CodeBorderLayoutManager.makeTextView(containerTracksWidth: false)
+        (textView.layoutManager)?.allowsNonContiguousLayout = true
         textView.isEditable = false
         textView.isSelectable = true
         textView.isRichText = true
@@ -1032,6 +1024,20 @@ extension MarkdownViewController: NSAccessibilityCustomRotorItemSearchDelegate {
 /// Layout manager that draws 1px rounded borders for inline code spans
 /// instead of filled background rectangles.
 final class CodeBorderLayoutManager: NSLayoutManager {
+
+    /// A text view on mrkd's TextKit 1 stack. TextKit 2 fails to lay out
+    /// NSTextBlock, which code blocks and tables use ("deferral block timed
+    /// out"), and a plain NSTextView starts on TextKit 2. Every text view
+    /// that shows rendered markdown is made here.
+    static func makeTextView(containerTracksWidth: Bool) -> NSTextView {
+        let textStorage = NSTextStorage()
+        let layoutManager = CodeBorderLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+        let textContainer = NSTextContainer()
+        textContainer.widthTracksTextView = containerTracksWidth
+        layoutManager.addTextContainer(textContainer)
+        return NSTextView(frame: .zero, textContainer: textContainer)
+    }
 
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)

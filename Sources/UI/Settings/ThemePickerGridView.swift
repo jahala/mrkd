@@ -256,7 +256,12 @@ private final class ThemeCardView: NSControl {
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Preview text view
-        self.previewTextView = NSTextView()
+        // The document's own TextKit 1 stack: the preview shows a code
+        // block, which TextKit 2 cannot lay out. It sizes itself to the
+        // scroll view's width rather than waiting for the scroll view to.
+        self.previewTextView = CodeBorderLayoutManager.makeTextView(containerTracksWidth: true)
+        previewTextView.autoresizingMask = [.width]
+        previewTextView.isVerticallyResizable = true
         previewTextView.isEditable = false
         previewTextView.isSelectable = false
         previewTextView.drawsBackground = true

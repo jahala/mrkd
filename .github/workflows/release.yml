@@ -10,7 +10,12 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    # The Xcode 27 image (macOS 27), the toolchain mrkd is developed and
+    # tested with. Built on macos-15 with Xcode 16, the app shipped without
+    # its icon (Xcode 16 cannot compile the AppIcon.icon format, so it copied
+    # the folder in raw) and with blank theme previews (an old-SDK app keeps
+    # a plain NSTextView on TextKit 2, which cannot lay out code blocks).
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
 
@@ -93,6 +98,23 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
             CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             build
+
+      # Fails the release rather than shipping what 1.4.0 and 1.5.0 did: an
+      # app with no compiled icon, built against an SDK older than the one
+      # mrkd is tested with.
+      - name: Check the built app
+        run: |
+          APP=build/Build/Products/Release/mrkd.app
+          if [ ! -f "$APP/Contents/Resources/Assets.car" ] || [ -e "$APP/Contents/Resources/AppIcon.icon" ]; then
+            echo "error: the app icon was not compiled (no Assets.car, or the raw AppIcon.icon folder was copied in)" >&2
+            exit 1
+          fi
+          SDK=$(otool -l "$APP/Contents/MacOS/mrkd" | awk '/LC_BUILD_VERSION/ {f=1} f && $1 == "sdk" {print $2; exit}')
+          echo "Linked against macOS SDK $SDK"
+          if [ "${SDK%%.*}" -lt 27 ]; then
+            echo "error: built against macOS SDK $SDK; mrkd is tested with SDK 27 or later" >&2
+            exit 1
+          fi
 
       - name: Notarize app
         env:
