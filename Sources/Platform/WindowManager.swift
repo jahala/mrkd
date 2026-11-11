@@ -44,9 +44,7 @@ final class WindowManager: NSObject {
         // Size and center AFTER setting contentViewController —
         // NSWindow resizes itself to the content view's frame when
         // contentViewController is assigned, discarding the initial contentRect.
-        let theme = ThemeManager.shared.currentTheme
-        window.setContentSize(WindowSizer.defaultSize(for: theme))
-        centerWindowOnCursorDisplay(window)
+        placeOnCursorDisplay(window)
 
         window.makeKeyAndOrderFront(nil)
         windows.append(window)
@@ -87,9 +85,7 @@ final class WindowManager: NSObject {
         let viewController = MarkdownViewController(markdownString: string)
         window.contentViewController = viewController
 
-        let theme = ThemeManager.shared.currentTheme
-        window.setContentSize(WindowSizer.defaultSize(for: theme))
-        centerWindowOnCursorDisplay(window)
+        placeOnCursorDisplay(window)
 
         window.makeKeyAndOrderFront(nil)
         windows.append(window)
@@ -156,23 +152,26 @@ final class WindowManager: NSObject {
         }
     }
 
-    private func centerWindowOnCursorDisplay(_ window: NSWindow) {
-        // Get mouse location in screen coordinates
+    /// Sizes the window for the display under the mouse pointer and centres
+    /// it there. Size and position come from the same display: sized for one
+    /// and shown on another, a window looks too small or too big.
+    private func placeOnCursorDisplay(_ window: NSWindow) {
         let mouseLocation = NSEvent.mouseLocation
-
-        // Find the screen containing the mouse cursor
         let targetScreen = NSScreen.screens.first { screen in
             screen.frame.contains(mouseLocation)
         } ?? NSScreen.main ?? NSScreen.screens[0]
-
-        // Center the window on the target screen
         let screenFrame = targetScreen.visibleFrame
+
+        window.setContentSize(WindowSizer.defaultSize(
+            visible: screenFrame.size,
+            readingWidth: ThemeManager.shared.readingWidth
+        ))
+
         let windowFrame = window.frame
-
-        let centeredX = screenFrame.midX - windowFrame.width / 2
-        let centeredY = screenFrame.midY - windowFrame.height / 2
-
-        window.setFrameOrigin(NSPoint(x: centeredX, y: centeredY))
+        window.setFrameOrigin(NSPoint(
+            x: screenFrame.midX - windowFrame.width / 2,
+            y: screenFrame.midY - windowFrame.height / 2
+        ))
     }
 
     private func updateWindowMinSizes() {

@@ -66,12 +66,6 @@ final class MarkdownViewController: NSViewController {
     /// in a row. Waiting this long after the last one turns a burst into one
     /// render, and keeps the file from being read mid-write.
     private static let liveReloadDebounce: TimeInterval = 0.12
-    private static let tocWidth: CGFloat = 200
-    private static let tocRightMargin: CGFloat = 24
-    /// Clear space between the column's right edge and the contents
-    /// sidebar. The sidebar has no background, so it only shows when the
-    /// margin beside the column holds it and this gap.
-    private static let tocColumnGap: CGFloat = 16
     /// How far into the viewport a heading can sit and still count as the one
     /// the reader is under. Shared by the TOC's active-entry highlight and by
     /// the live-reload reading anchor, so both agree on where "here" is.
@@ -181,9 +175,9 @@ final class MarkdownViewController: NSViewController {
         }
 
         NSLayoutConstraint.activate([
-            tocView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Self.tocRightMargin),
+            tocView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Sidebar.rightMargin),
             tocView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 80),
-            tocView.widthAnchor.constraint(equalToConstant: Self.tocWidth),
+            tocView.widthAnchor.constraint(equalToConstant: Sidebar.width),
             // Definite bottom — not lessThanOrEqualTo. With a loose bottom
             // constraint and no intrinsic content size, AutoLayout collapses
             // the tocView height to fit just the header, leaving the inner
@@ -227,7 +221,7 @@ final class MarkdownViewController: NSViewController {
         container.containerSize.width = layout.columnWidth
         textView.textContainerInset = NSSize(width: layout.sideInset, height: 40)
         textView.frame.size.width = windowW
-        tocView.isHidden = !layout.marginFits(Self.tocWidth + Self.tocRightMargin + Self.tocColumnGap)
+        tocView.isHidden = !layout.showsSidebar
 
         // A width change re-wraps the text, so any accents drawn against the
         // old line rects now point at the wrong places.

@@ -60,4 +60,27 @@ struct ColumnLayout: Equatable {
     func marginFits(_ width: CGFloat) -> Bool {
         sideInset >= width
     }
+
+    /// Whether the contents sidebar fits beside the column.
+    var showsSidebar: Bool { marginFits(Sidebar.room) }
+
+    /// The narrowest view that shows the sidebar beside a column of this
+    /// reading width, or nil when no width does (Full Window).
+    static func narrowestViewShowingSidebar(readingWidth: ReadingWidth) -> CGFloat? {
+        readingWidth.maxColumnWidth.map { $0 + 2 * Sidebar.room }
+    }
+}
+
+/// The contents sidebar's size and spacing. The view lays the sidebar out
+/// with these, and the window sizer opens windows wide enough for them.
+enum Sidebar {
+    static let width: CGFloat = 200
+    static let rightMargin: CGFloat = 24
+    /// Clear space between the column's right edge and the sidebar. The
+    /// sidebar has no background, so it only shows when the margin beside
+    /// the column holds it and this gap.
+    static let columnGap: CGFloat = 16
+
+    /// The margin the sidebar needs beside the column.
+    static var room: CGFloat { width + rightMargin + columnGap }
 }
