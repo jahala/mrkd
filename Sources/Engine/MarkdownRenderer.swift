@@ -234,10 +234,21 @@ enum MarkdownRenderer {
             result.append(NSAttributedString(string: "\n", attributes: theme.bodyAttributes))
 
         case CMARK_NODE_THEMATIC_BREAK:
-            let separator = String(repeating: "\u{2500}", count: 60) // Box-drawing horizontal line
+            // A line along the bottom of an empty paragraph as wide as the
+            // column. Drawn characters would wrap when the column is
+            // narrower than they are, and VoiceOver would read each one.
+            let rule = NSTextBlock()
+            rule.setValue(100, type: .percentageValueType, for: .width)
+            rule.setBorderColor(theme.tableBorderColor, for: .maxY)
+            rule.setWidth(1, type: .absoluteValueType, for: .border, edge: .maxY)
+            let style = NSMutableParagraphStyle()
+            style.textBlocks = [rule]
+            // A short line, so the rule sits midway between the blank
+            // lines around it rather than at the foot of a full text line.
             var attrs = theme.bodyAttributes
-            attrs[.foregroundColor] = NSColor.separatorColor
-            result.append(NSAttributedString(string: separator + "\n", attributes: attrs))
+            attrs[.font] = theme.font(size: theme.baseFontSize * 0.5, weight: .regular)
+            attrs[.paragraphStyle] = style
+            result.append(NSAttributedString(string: "\u{200B}\n", attributes: attrs))
             appendNewlines(result, count: 1)
 
         case CMARK_NODE_EMPH:

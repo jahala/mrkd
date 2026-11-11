@@ -137,10 +137,38 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertEqual(result.attribute(.sourceBlockIndex, at: heading.location, effectiveRange: nil) as? Int, 1)
     }
 
+    /// The text blocks that draw a horizontal rule: a line along the bottom
+    /// edge, as wide as the column.
+    private func ruleBlocks(in result: NSAttributedString) -> [NSTextBlock] {
+        var blocks: [NSTextBlock] = []
+        result.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: result.length)) { value, _, _ in
+            for block in (value as? NSParagraphStyle)?.textBlocks ?? []
+            where block.width(for: .border, edge: .maxY) > 0 && !blocks.contains(where: { $0 === block }) {
+                blocks.append(block)
+            }
+        }
+        return blocks
+    }
+
     func testAHyphenRuleRendersAsARuleAndNotAsADash() {
         let result = MarkdownRenderer.render("Above\n\n---\n\nBelow")
         XCTAssertFalse(result.string.contains("\u{2014}"), "got: \(result.string.debugDescription)")
-        XCTAssertTrue(result.string.contains("\u{2500}"), "the rule must be drawn like `***` is")
+        XCTAssertEqual(ruleBlocks(in: result).count, 1, "the rule must be drawn like `***` is")
+    }
+
+    /// A rule is a line across the column at any width, never a run of
+    /// characters that wraps when the column is narrow.
+    func testARuleIsALineAsWideAsTheColumn() {
+        let theme = DefaultTheme()
+        for source in ["Above\n\n***\n\nBelow", "Above\n\n___\n\nBelow", "Above\n\n- - -\n\nBelow"] {
+            let result = MarkdownRenderer.render(source, theme: theme)
+            XCTAssertFalse(result.string.contains("\u{2500}"), "no drawn characters: \(source)")
+            guard let rule = ruleBlocks(in: result).first else { return XCTFail("no rule in \(source)") }
+            XCTAssertEqual(rule.value(for: .width), 100, source)
+            XCTAssertEqual(rule.valueType(for: .width), .percentageValueType, source)
+            XCTAssertEqual(rule.borderColor(for: .maxY), theme.tableBorderColor, source)
+            XCTAssertEqual(rule.width(for: .border, edge: .minY), 0, "one line, not a box: \(source)")
+        }
     }
 
     func testARuleLaterInTheDocumentIsNotFrontMatter() {
