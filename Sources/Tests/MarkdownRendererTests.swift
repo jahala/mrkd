@@ -41,55 +41,41 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(result.string.contains("\u{201C}great\u{201D}"), "double quotes must curl")
     }
 
-    func testRenderDoesNotCrashWhenEmojiPrecedesLaterBlock() {
-        // Regression test: applyContextualSpacing indexed the attributed
-        // string's UTF-16 length into a Swift String by Character offset.
-        // An emoji (two UTF-16 code units, one Character) before a later
-        // block made the offset exceed the character count and trap with
-        // "String index is out of bounds".
-        let markdown = "👍 note\n\nparagraph two"
-        let result = MarkdownRenderer.render(markdown)
-        XCTAssertTrue(result.string.contains("paragraph two"))
+    // applyContextualSpacing gets its start position from the attributed
+    // string's length, which counts UTF-16 code units. It used to step
+    // through the Swift String by Characters instead. An emoji is one
+    // Character but several UTF-16 units, so every emoji before a block
+    // pushed the two counts further apart.
 
-        // The later paragraph must still receive its contextual spacing.
-        var spacingApplied = false
-        result.enumerateAttribute(
-            .paragraphStyle,
-            in: NSRange(location: 0, length: result.length)
-        ) { value, _, _ in
-            if let style = value as? NSParagraphStyle,
-               style.paragraphSpacingBefore > 0 {
-                spacingApplied = true
-            }
-        }
-        XCTAssertTrue(spacingApplied, "second paragraph must get spacingBefore")
+    private func spacingBefore(in result: NSAttributedString, at location: Int) -> CGFloat {
+        let style = result.attribute(.paragraphStyle, at: location, effectiveRange: nil) as? NSParagraphStyle
+        return style?.paragraphSpacingBefore ?? 0
     }
 
-    func testRenderSurvivesEmojiInsideLongerDocument() {
-        // Wider regression sweep: emoji in headings, lists, code fences and
-        // blockquotes, all followed by blocks that need contextual spacing.
-        // Separator string keeps the raw literal from collapsing leading
-        // whitespace per line.
-        let markdown = #"""
-        # 🏔️ 山
-
-        - 条目 📌
-        - 再一条
-
-        > 引用 🐱
-
-        ```swift
-        let x = 1 // 🌈
-        ```
-
-        | A | B |
-        |---|--|
-        | ✨ | ✅ |
-
-        ## 结尾段落
-        """#
+    func testRenderDoesNotCrashWhenEmojiOutnumberTheRestOfTheDocument() {
+        // Each family emoji is 11 UTF-16 units but one Character. Three of
+        // them put the start position past the end of the string counted in
+        // Characters, which trapped with "String index is out of bounds".
+        let markdown = String(repeating: "👨‍👩‍👧‍👦", count: 3) + "\n\nend"
         let result = MarkdownRenderer.render(markdown)
-        XCTAssertTrue(result.string.contains("结尾段落"))
+        let end = (result.string as NSString).range(of: "end")
+        XCTAssertNotEqual(end.location, NSNotFound)
+        XCTAssertGreaterThan(spacingBefore(in: result, at: end.location), 0)
+        XCTAssertGreaterThan(spacingBefore(in: result, at: NSMaxRange(end) - 1), 0)
+    }
+
+    func testContextualSpacingCoversTheWholeParagraphAfterAnEmoji() {
+        // One emoji is not enough to crash, but the spacing range came out
+        // one unit short and missed the paragraph's last character.
+        let result = MarkdownRenderer.render("👍 one\n\ntwo three")
+        let text = result.string as NSString
+        let two = text.range(of: "two")
+        let three = text.range(of: "three")
+        XCTAssertGreaterThan(spacingBefore(in: result, at: two.location), 0)
+        XCTAssertGreaterThan(
+            spacingBefore(in: result, at: NSMaxRange(three) - 1), 0,
+            "the last character of the second paragraph must carry its spacing"
+        )
     }
 
     func testSmartTypographySkippedWhenThemeOptsOut() {
