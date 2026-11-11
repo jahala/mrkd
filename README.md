@@ -14,6 +14,7 @@ Built for reading markdown that something else is writing: open a file and it ke
 - **Find in page** -- `Cmd F`, themed to the document, in the app and in Quick Look
 - **Math** -- `$inline$` and `$$display$$` LaTeX rendered natively via SwaTex, no JavaScript
 - **Mermaid** -- flowcharts, sequence diagrams and the rest, rendered natively via merman and themed to match the document
+- **Agent tags** -- tag pairs that coding agents write, like `<example>` or `<thinking>`, show as labelled boxes with the markdown inside rendered. Reasoning such as `<thinking>` sits back on a grey fill in muted text. Real HTML tags such as `<div>` show as before.
 - **Themes** -- Built-in themes and import your own from iTerm2 or VS Code
 - **Typography** -- Variable font support with configurable body and code fonts (Geist, Inter, iA Writer Mono, JetBrains Mono, and more)
 - **Reading width** -- Narrow, Standard, Wide or Full Window text column, in every window and in Quick Look
