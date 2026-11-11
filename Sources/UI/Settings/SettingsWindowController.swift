@@ -14,6 +14,7 @@ final class SettingsWindowController: NSWindowController {
     private var themePickerGrid: ThemePickerGridView!
     private var bodyFontPopUpButton: NSPopUpButton!
     private var bodyFontSizePopUpButton: NSPopUpButton!
+    private var readingWidthPopUpButton: NSPopUpButton!
     private var codeFontPopUpButton: NSPopUpButton!
     private var commandLineStatusLabel: NSTextField!
 
@@ -23,6 +24,10 @@ final class SettingsWindowController: NSWindowController {
     private var didProbeShellPath = false
 
     private static let bodyFontSizes: [Int] = [11, 12, 13, 14, 15, 16, 17, 18, 20]
+
+    /// One label column for every popup row, wide enough for the longest
+    /// label ("Reading Width"), so the popups line up.
+    private static let rowLabelWidth: CGFloat = 100
 
     private static let monospaceFonts = [
         "SF Mono", "Menlo", "Fira Code", "JetBrains Mono", "Geist Mono", "Source Code Pro", "IBM Plex Mono",
@@ -87,6 +92,8 @@ final class SettingsWindowController: NSWindowController {
 
         let fontSizeRow = createFontSizeRow()
 
+        let readingWidthRow = createReadingWidthRow()
+
         let codeFontRow = createFontRow(
             label: "Code Font",
             families: Self.monospaceFonts,
@@ -105,6 +112,7 @@ final class SettingsWindowController: NSWindowController {
         stackView.addArrangedSubview(themePickerGrid)
         stackView.addArrangedSubview(bodyFontRow)
         stackView.addArrangedSubview(fontSizeRow)
+        stackView.addArrangedSubview(readingWidthRow)
         stackView.addArrangedSubview(codeFontRow)
         stackView.setCustomSpacing(28, after: codeFontRow)
         stackView.addArrangedSubview(commandLineSectionLabel)
@@ -186,7 +194,7 @@ final class SettingsWindowController: NSWindowController {
         NSLayoutConstraint.activate([
             fontLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             fontLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            fontLabel.widthAnchor.constraint(equalToConstant: 80),
+            fontLabel.widthAnchor.constraint(equalToConstant: Self.rowLabelWidth),
 
             popUpButton.leadingAnchor.constraint(equalTo: fontLabel.trailingAnchor, constant: 12),
             popUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
@@ -238,11 +246,53 @@ final class SettingsWindowController: NSWindowController {
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            label.widthAnchor.constraint(equalToConstant: 80),
+            label.widthAnchor.constraint(equalToConstant: Self.rowLabelWidth),
 
             popUpButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
             popUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
             popUpButton.widthAnchor.constraint(equalToConstant: 90),
+
+            container.heightAnchor.constraint(equalTo: popUpButton.heightAnchor)
+        ])
+
+        return container
+    }
+
+    private func createReadingWidthRow() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = NSTextField(labelWithString: "Reading Width")
+        label.font = .systemFont(ofSize: 13, weight: .semibold)
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let popUpButton = NSPopUpButton()
+        popUpButton.translatesAutoresizingMaskIntoConstraints = false
+        popUpButton.target = self
+        popUpButton.action = #selector(readingWidthChanged(_:))
+        readingWidthPopUpButton = popUpButton
+
+        let current = ThemeManager.shared.readingWidth
+        for width in ReadingWidth.allCases {
+            let menuItem = NSMenuItem(title: width.title, action: nil, keyEquivalent: "")
+            menuItem.representedObject = width.rawValue
+            popUpButton.menu?.addItem(menuItem)
+            if width == current {
+                popUpButton.select(menuItem)
+            }
+        }
+
+        container.addSubview(label)
+        container.addSubview(popUpButton)
+
+        // No width constraint: the popup sizes itself to its longest choice.
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            label.widthAnchor.constraint(equalToConstant: Self.rowLabelWidth),
+
+            popUpButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
+            popUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
 
             container.heightAnchor.constraint(equalTo: popUpButton.heightAnchor)
         ])
@@ -399,6 +449,12 @@ final class SettingsWindowController: NSWindowController {
         ThemeManager.shared.codeFontFamily = selectedTitle
     }
 
+    @objc private func readingWidthChanged(_ sender: NSPopUpButton) {
+        guard let rawValue = sender.selectedItem?.representedObject as? String,
+              let width = ReadingWidth(rawValue: rawValue) else { return }
+        ThemeManager.shared.readingWidth = width
+    }
+
     private func importTheme() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [
@@ -486,6 +542,13 @@ final class SettingsWindowController: NSWindowController {
             }
         }
 
+        let currentWidth = ThemeManager.shared.readingWidth.rawValue
+        if readingWidthPopUpButton.selectedItem?.representedObject as? String != currentWidth,
+           let match = readingWidthPopUpButton.itemArray.first(where: {
+               ($0.representedObject as? String) == currentWidth
+           }) {
+            readingWidthPopUpButton.select(match)
+        }
     }
 
     // MARK: - Window Management

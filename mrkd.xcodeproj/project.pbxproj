@@ -45,6 +45,7 @@
 		4D1ABD788041F11E6736DB70 /* SmartTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100CE565A885D5D926239003 /* SmartTypography.swift */; };
 		4D899BF473CDD20DB5278BF8 /* TextInteractionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107D699E48B66B070525BE2D /* TextInteractionHandler.swift */; };
 		4E595406D176D3D95B2DAC8B /* ReloadBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0644988ADABEF7A324F3DB95 /* ReloadBannerView.swift */; };
+		56E3C54A12A13C779871B6D1 /* ReadingWidth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B953979A8346CF9C0693BF /* ReadingWidth.swift */; };
 		57029EA3E59490945603E4DD /* DiagramAttachmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0532C3D9D368F35DD2023F28 /* DiagramAttachmentProvider.swift */; };
 		594A6FD2605258EFC5E25694 /* TOCFloatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48BCF30227B4553AC563593C /* TOCFloatingView.swift */; };
 		5BBD203DDE255904985746A6 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF30C3187B9524F379E016 /* Highlightr */; };
@@ -87,6 +88,7 @@
 		AD334974D42497A530F7DE6B /* Debouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53701BEDA3F06284FAD55B85 /* Debouncer.swift */; };
 		ADE0DFFB0A8020855F410C8D /* Debouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53701BEDA3F06284FAD55B85 /* Debouncer.swift */; };
 		AFD8CC97AA50129D9A190AF7 /* FragmentLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BC66C785F405D66D8E1C601 /* FragmentLinkHandler.swift */; };
+		B1000B80FF2DDDC3AF702D32 /* ReadingWidth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B953979A8346CF9C0693BF /* ReadingWidth.swift */; };
 		B11CA5BED7387E2D23BAD074 /* RenderPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66718D25392A612CE84695D /* RenderPipeline.swift */; };
 		B7AAB09FFC499088E8E3AF28 /* DiagramAttachmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0532C3D9D368F35DD2023F28 /* DiagramAttachmentProvider.swift */; };
 		BA4C2BB65B18B6B5C7D29D23 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D29166E800D589137CBB78 /* main.swift */; };
@@ -168,6 +170,7 @@
 
 /* Begin PBXFileReference section */
 		0265860C1EF27518A6EBF866 /* DocumentIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentIdentity.swift; sourceTree = "<group>"; };
+		03B953979A8346CF9C0693BF /* ReadingWidth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingWidth.swift; sourceTree = "<group>"; };
 		0532C3D9D368F35DD2023F28 /* DiagramAttachmentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramAttachmentProvider.swift; sourceTree = "<group>"; };
 		06152D09C5B8FFD4E939255B /* DocumentFindController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentFindController.swift; sourceTree = "<group>"; };
 		0644988ADABEF7A324F3DB95 /* ReloadBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReloadBannerView.swift; sourceTree = "<group>"; };
@@ -422,6 +425,7 @@
 				36E3A571DA44689ED8D23C2F /* MathSpanScanner.swift */,
 				2035F88E0EA02DBC4A97D9AE /* MermaidRenderer.swift */,
 				1BE4B9BA85C37A208DED6B62 /* MermaidThemePayload.swift */,
+				03B953979A8346CF9C0693BF /* ReadingWidth.swift */,
 				634219F6759999DFA584FB26 /* RecentDocuments.swift */,
 				F35BF18877FD34428A46F4E8 /* ScrollAnchoring.swift */,
 				100CE565A885D5D926239003 /* SmartTypography.swift */,
@@ -595,6 +599,7 @@
 				E6432E8025AD05C91014DCBA /* MonokaiTheme.swift in Sources */,
 				D05CE920CB61E4BA3085DD2B /* OpenWithButton.swift in Sources */,
 				61858144340601E98AB081D5 /* PreviewViewController.swift in Sources */,
+				56E3C54A12A13C779871B6D1 /* ReadingWidth.swift in Sources */,
 				11B3BE05D61B683CEF88A2CA /* RecentDocuments.swift in Sources */,
 				DDA3FA6CC120667EE7870387 /* ReloadBannerView.swift in Sources */,
 				04C38A200772512A883BB2ED /* RenderPipeline.swift in Sources */,
@@ -656,6 +661,7 @@
 				9098F196BBC3F5109640D593 /* MermaidThemePayload.swift in Sources */,
 				32F51FA820DA4139DA08BCDA /* MonokaiTheme.swift in Sources */,
 				9A610A574B861A6ED4C98FE2 /* OpenWithButton.swift in Sources */,
+				B1000B80FF2DDDC3AF702D32 /* ReadingWidth.swift in Sources */,
 				4441DC177438ED8E3FCBD7EC /* RecentDocuments.swift in Sources */,
 				4E595406D176D3D95B2DAC8B /* ReloadBannerView.swift in Sources */,
 				B11CA5BED7387E2D23BAD074 /* RenderPipeline.swift in Sources */,
