@@ -72,12 +72,31 @@ enum MarkdownRenderer {
         theme: Theme
     ) -> (blocks: [String], math: [MathSpan]) {
         var math: [MathSpan] = []
-        let blocks = BlockSplitter.split(markdown).map { block -> String in
+        var split = BlockSplitter.split(markdown)
+        if BlockSplitter.frontMatterLineCount(in: markdown) != nil {
+            split[0] = fencedFrontMatter(split[0])
+        }
+        let blocks = split.map { block -> String in
             let (source, spans) = MathSpanScanner.extract(from: block, firstIndex: math.count)
             math.append(contentsOf: spans)
             return theme.smartTypographyAllowed ? smartenMarkdown(source) : source
         }
         return (blocks, math)
+    }
+
+    /// Front matter rewritten as a fenced YAML code block, so it shows as
+    /// what it is rather than as a rule and a run-on paragraph.
+    ///
+    /// Only the two delimiter lines change, so the block keeps its line
+    /// count and every later block keeps the start line the changed-block
+    /// highlight maps it by. The fence is longer than any backtick run that
+    /// opens a line inside, so no YAML line can close it early.
+    private static func fencedFrontMatter(_ block: String) -> String {
+        let lines = block.components(separatedBy: "\n")
+        let body = lines.dropFirst().dropLast()
+        let longestRun = body.map { $0.drop(while: { $0 == " " }).prefix(while: { $0 == "`" }).count }.max() ?? 0
+        let fence = String(repeating: "`", count: max(3, longestRun + 1))
+        return ([fence + "yaml"] + body + [fence]).joined(separator: "\n")
     }
 
     /// What the reader gets when cmark itself will not start. Rare enough

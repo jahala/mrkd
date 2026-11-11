@@ -99,4 +99,28 @@ final class BlockSplitterTests: XCTestCase {
         XCTAssertNil(BlockSplitter.blockIndex(forLine: 4, startLines: []))
         XCTAssertNil(BlockSplitter.blockIndex(forLine: 0, startLines: [1, 3]))
     }
+
+    // MARK: - Front matter
+
+    /// YAML front matter may hold blank lines. It is one block, or the
+    /// changed-block highlight and the renderer would each see its halves
+    /// as separate paragraphs.
+    func testFrontMatterIsOneBlockEvenWithABlankLineInside() {
+        let source = "---\ntitle: Plan\n\ntags: [a, b]\n---\n\n# Heading"
+        XCTAssertEqual(
+            BlockSplitter.split(source),
+            ["---\ntitle: Plan\n\ntags: [a, b]\n---", "# Heading"]
+        )
+    }
+
+    func testFrontMatterIsFoundOnlyAtTheVeryStart() {
+        XCTAssertEqual(BlockSplitter.frontMatterLineCount(in: "---\nkey: v\n---\nBody"), 3)
+        XCTAssertEqual(BlockSplitter.frontMatterLineCount(in: "---\nkey: v\n...\nBody"), 3)
+        XCTAssertEqual(BlockSplitter.frontMatterLineCount(in: "\u{FEFF}---\r\nkey: v\r\n---\r\n"), 3)
+        // Later in the document, `---` is a rule and is left to cmark.
+        XCTAssertNil(BlockSplitter.frontMatterLineCount(in: "Intro\n\n---\nkey: v\n---"))
+        // An opening line with nothing to close it is a rule, not front matter.
+        XCTAssertNil(BlockSplitter.frontMatterLineCount(in: "---\nkey: v\n\nBody"))
+        XCTAssertNil(BlockSplitter.frontMatterLineCount(in: "----\nkey: v\n----"))
+    }
 }
