@@ -340,4 +340,35 @@ final class CommandLineLauncherTests: XCTestCase {
         XCTAssertTrue(text.contains("~/.local/bin/mrkd"), text)
         XCTAssertTrue(text.lowercased().contains("another file"), text)
     }
+
+    // MARK: - Settings row
+
+    private func row(_ status: LauncherStatus, _ path: ShellPathState = .onPath) -> SettingsStatus {
+        LauncherInstaller.settingsStatus(status: status, displayPath: "~/.local/bin/mrkd", pathState: path)
+    }
+
+    /// The Settings row shows a word or two, a coloured dot, and a button
+    /// only when there is something to do.
+    func testSettingsRowShowsAShortStatusAndTheOneAction() {
+        XCTAssertEqual(row(.notInstalled), SettingsStatus(text: "Not installed", tone: .neutral, action: "Install", note: nil))
+        XCTAssertEqual(row(.installed), SettingsStatus(text: "Installed", tone: .good, action: nil, note: nil))
+        XCTAssertEqual(row(.outdated),
+                       SettingsStatus(text: "Points to another copy of mrkd", tone: .attention, action: "Update", note: nil))
+        XCTAssertEqual(row(.occupied), SettingsStatus(
+            text: "Another file is in the way", tone: .attention, action: nil,
+            note: "Another file is already at ~/.local/bin/mrkd. Move it aside, then install."
+        ))
+    }
+
+    /// A command Terminal cannot find is not working, so the row says so and
+    /// the note gives the exact line to add.
+    func testSettingsRowFlagsAnInstallThatIsNotOnPath() {
+        let missing = row(.installed, .missing)
+        XCTAssertEqual(missing.tone, .attention)
+        XCTAssertEqual(missing.note,
+                       "~/.local/bin isn’t on your PATH, so Terminal won’t find mrkd. "
+                       + "Add this line to your shell profile: export PATH=\"$HOME/.local/bin:$PATH\"")
+        XCTAssertNil(row(.installed, .unknown).note, "no note while the shell is still being asked")
+        XCTAssertNil(row(.notInstalled, .missing).note, "nothing to find until it is installed")
+    }
 }

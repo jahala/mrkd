@@ -16,11 +16,16 @@ final class SettingsWindowController: NSWindowController {
     private var bodyFontSizePopUpButton: NSPopUpButton!
     private var readingWidthPopUpButton: NSPopUpButton!
     private var codeFontPopUpButton: NSPopUpButton!
-    private var commandLineStatusLabel: NSTextField!
-    private var quickLookStatusLabel: NSTextField!
-    private var quickLookNoteLabel: NSTextField!
+    private var pageStack: NSStackView!
+    private let commandLineStatus = SettingsStatusView()
+    private var commandLineButton: NSButton!
+    private var commandLineGroup: NSView!
+    private let commandLineNote = SettingsForm.note()
+    private let quickLookStatus = SettingsStatusView()
     private var quickLookActionButton: NSButton!
-    private var quickLookCheckbox: NSButton!
+    private var quickLookSwitch: NSSwitch!
+    private var quickLookGroup: NSView!
+    private let quickLookNote = SettingsForm.note()
 
     /// The last check's answer, which the Fix button acts on.
     private var quickLookReport: QuickLookReport?
@@ -36,10 +41,6 @@ final class SettingsWindowController: NSWindowController {
     private var didProbeShellPath = false
 
     private static let bodyFontSizes: [Int] = [11, 12, 13, 14, 15, 16, 17, 18, 20]
-
-    /// One label column for every popup row, wide enough for the longest
-    /// label ("Reading Width"), so the popups line up.
-    private static let rowLabelWidth: CGFloat = 100
 
     private static let monospaceFonts = [
         "SF Mono", "Menlo", "Fira Code", "JetBrains Mono", "Geist Mono", "Source Code Pro", "IBM Plex Mono",
@@ -80,13 +81,10 @@ final class SettingsWindowController: NSWindowController {
         let stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.alignment = .leading
-        stackView.spacing = 16
+        stackView.spacing = 8
         stackView.translatesAutoresizingMaskIntoConstraints = false
         stackView.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
-
-        let themeSectionLabel = NSTextField(labelWithString: "Theme")
-        themeSectionLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        themeSectionLabel.translatesAutoresizingMaskIntoConstraints = false
+        pageStack = stackView
 
         themePickerGrid = ThemePickerGridView(selectedTheme: ThemeManager.shared.selectedThemeName)
         themePickerGrid.translatesAutoresizingMaskIntoConstraints = false
@@ -94,50 +92,44 @@ final class SettingsWindowController: NSWindowController {
             self?.importTheme()
         }
 
-        let bodyFontRow = createFontRow(
-            label: "Body Font",
-            families: Self.monospaceFonts + Self.proportionalFonts,
-            currentFamily: ThemeManager.shared.fontFamily,
-            action: #selector(bodyFontChanged(_:)),
-            assignTo: &bodyFontPopUpButton
-        )
+        let textGroup = SettingsForm.group([
+            SettingsForm.row(title: "Body font", controls: [fontPopUp(
+                families: Self.monospaceFonts + Self.proportionalFonts,
+                currentFamily: ThemeManager.shared.fontFamily,
+                action: #selector(bodyFontChanged(_:)),
+                assignTo: &bodyFontPopUpButton
+            )]),
+            SettingsForm.row(title: "Font size", controls: [fontSizePopUp()]),
+            SettingsForm.row(title: "Reading width", controls: [readingWidthPopUp()]),
+            SettingsForm.row(title: "Code font", controls: [fontPopUp(
+                families: Self.monospaceFonts,
+                currentFamily: ThemeManager.shared.codeFontFamily,
+                action: #selector(codeFontChanged(_:)),
+                assignTo: &codeFontPopUpButton
+            )]),
+        ])
 
-        let fontSizeRow = createFontSizeRow()
+        commandLineGroup = createCommandLineGroup()
+        quickLookGroup = createQuickLookGroup()
 
-        let readingWidthRow = createReadingWidthRow()
-
-        let codeFontRow = createFontRow(
-            label: "Code Font",
-            families: Self.monospaceFonts,
-            currentFamily: ThemeManager.shared.codeFontFamily,
-            action: #selector(codeFontChanged(_:)),
-            assignTo: &codeFontPopUpButton
-        )
-
-        let commandLineSectionLabel = NSTextField(labelWithString: "Command Line")
-        commandLineSectionLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        commandLineSectionLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let commandLineRow = createCommandLineRow()
-
-        let quickLookSectionLabel = NSTextField(labelWithString: "Quick Look")
-        quickLookSectionLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        quickLookSectionLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let quickLookRow = createQuickLookRow()
-
-        stackView.addArrangedSubview(themeSectionLabel)
-        stackView.addArrangedSubview(themePickerGrid)
-        stackView.addArrangedSubview(bodyFontRow)
-        stackView.addArrangedSubview(fontSizeRow)
-        stackView.addArrangedSubview(readingWidthRow)
-        stackView.addArrangedSubview(codeFontRow)
-        stackView.setCustomSpacing(28, after: codeFontRow)
-        stackView.addArrangedSubview(commandLineSectionLabel)
-        stackView.addArrangedSubview(commandLineRow)
-        stackView.setCustomSpacing(28, after: commandLineRow)
-        stackView.addArrangedSubview(quickLookSectionLabel)
-        stackView.addArrangedSubview(quickLookRow)
+        let sections: [[NSView]] = [
+            [SettingsForm.sectionTitle("Theme"), themePickerGrid],
+            [SettingsForm.sectionTitle("Text"), textGroup],
+            [SettingsForm.sectionTitle("Command Line"), commandLineGroup, commandLineNote],
+            [SettingsForm.sectionTitle("Quick Look"), quickLookGroup, quickLookNote],
+        ]
+        for section in sections {
+            for view in section {
+                stackView.addArrangedSubview(view)
+            }
+            // More space between sections than within them.
+            if let last = section.last {
+                stackView.setCustomSpacing(24, after: last)
+            }
+        }
+        stackView.setCustomSpacing(24, after: themePickerGrid)
+        stackView.setCustomSpacing(24, after: textGroup)
+        updateNoteSpacing()
 
         // Wrap in a scroll view so all content is reachable
         let scrollView = NSScrollView()
@@ -164,22 +156,13 @@ final class SettingsWindowController: NSWindowController {
         window?.makeFirstResponder(themePickerGrid)
     }
 
-    private func createFontRow(
-        label: String,
+    private func fontPopUp(
         families: [String],
         currentFamily: String,
         action: Selector,
         assignTo button: inout NSPopUpButton!
-    ) -> NSView {
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let fontLabel = NSTextField(labelWithString: label)
-        fontLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        fontLabel.translatesAutoresizingMaskIntoConstraints = false
-
+    ) -> NSPopUpButton {
         let popUpButton = NSPopUpButton()
-        popUpButton.translatesAutoresizingMaskIntoConstraints = false
         popUpButton.target = self
         popUpButton.action = action
         button = popUpButton
@@ -209,35 +192,11 @@ final class SettingsWindowController: NSWindowController {
             popUpButton.selectItem(withTitle: currentFamily)
         }
 
-        container.addSubview(fontLabel)
-        container.addSubview(popUpButton)
-
-        NSLayoutConstraint.activate([
-            fontLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            fontLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            fontLabel.widthAnchor.constraint(equalToConstant: Self.rowLabelWidth),
-
-            popUpButton.leadingAnchor.constraint(equalTo: fontLabel.trailingAnchor, constant: 12),
-            popUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            popUpButton.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            popUpButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 200),
-
-            container.heightAnchor.constraint(equalTo: popUpButton.heightAnchor)
-        ])
-
-        return container
+        return popUpButton
     }
 
-    private func createFontSizeRow() -> NSView {
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let label = NSTextField(labelWithString: "Font Size")
-        label.font = .systemFont(ofSize: 13, weight: .semibold)
-        label.translatesAutoresizingMaskIntoConstraints = false
-
+    private func fontSizePopUp() -> NSPopUpButton {
         let popUpButton = NSPopUpButton()
-        popUpButton.translatesAutoresizingMaskIntoConstraints = false
         popUpButton.target = self
         popUpButton.action = #selector(bodyFontSizeChanged(_:))
         bodyFontSizePopUpButton = popUpButton
@@ -261,34 +220,11 @@ final class SettingsWindowController: NSWindowController {
             popUpButton.select(menuItem)
         }
 
-        container.addSubview(label)
-        container.addSubview(popUpButton)
-
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            label.widthAnchor.constraint(equalToConstant: Self.rowLabelWidth),
-
-            popUpButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
-            popUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            popUpButton.widthAnchor.constraint(equalToConstant: 90),
-
-            container.heightAnchor.constraint(equalTo: popUpButton.heightAnchor)
-        ])
-
-        return container
+        return popUpButton
     }
 
-    private func createReadingWidthRow() -> NSView {
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let label = NSTextField(labelWithString: "Reading Width")
-        label.font = .systemFont(ofSize: 13, weight: .semibold)
-        label.translatesAutoresizingMaskIntoConstraints = false
-
+    private func readingWidthPopUp() -> NSPopUpButton {
         let popUpButton = NSPopUpButton()
-        popUpButton.translatesAutoresizingMaskIntoConstraints = false
         popUpButton.target = self
         popUpButton.action = #selector(readingWidthChanged(_:))
         readingWidthPopUpButton = popUpButton
@@ -303,73 +239,39 @@ final class SettingsWindowController: NSWindowController {
             }
         }
 
-        container.addSubview(label)
-        container.addSubview(popUpButton)
+        return popUpButton
+    }
 
-        // No width constraint: the popup sizes itself to its longest choice.
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            label.widthAnchor.constraint(equalToConstant: Self.rowLabelWidth),
-
-            popUpButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
-            popUpButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-
-            container.heightAnchor.constraint(equalTo: popUpButton.heightAnchor)
-        ])
-
-        return container
+    /// A group sits 6 points above its note when the note shows, and a
+    /// section's width above the next title when it doesn't.
+    private func updateNoteSpacing() {
+        guard let pageStack else { return }
+        for (group, note) in [(commandLineGroup, commandLineNote), (quickLookGroup, quickLookNote)] {
+            // A status can arrive while the window is still being built,
+            // before its group is on the page.
+            guard let group, pageStack.arrangedSubviews.contains(group) else { continue }
+            pageStack.setCustomSpacing(note.isHidden ? 24 : 6, after: group)
+        }
     }
 
     // MARK: - Command Line
 
-    private func createCommandLineRow() -> NSView {
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let description = NSTextField(wrappingLabelWithString:
-            "Adds an mrkd command to ~/.local/bin so you can open Markdown from the terminal: "
-            + "mrkd FILE, mrkd on its own to reopen the last document, or pipe into it.")
-        description.font = .systemFont(ofSize: 11)
-        description.textColor = .secondaryLabelColor
-        description.translatesAutoresizingMaskIntoConstraints = false
-
-        let button = NSButton(
-            title: "Install mrkd Command",
-            target: self,
-            action: #selector(installCommandLineTool(_:))
-        )
+    private func createCommandLineGroup() -> NSView {
+        let button = NSButton(title: "Install", target: self, action: #selector(installCommandLineTool(_:)))
         button.bezelStyle = .rounded
-        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isHidden = true
+        commandLineButton = button
 
-        let status = NSTextField(wrappingLabelWithString: "")
-        status.font = .systemFont(ofSize: 11)
-        status.textColor = .secondaryLabelColor
-        status.translatesAutoresizingMaskIntoConstraints = false
-        commandLineStatusLabel = status
-
-        container.addSubview(description)
-        container.addSubview(button)
-        container.addSubview(status)
-
-        NSLayoutConstraint.activate([
-            description.topAnchor.constraint(equalTo: container.topAnchor),
-            description.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            description.widthAnchor.constraint(equalToConstant: 520),
-
-            button.topAnchor.constraint(equalTo: description.bottomAnchor, constant: 10),
-            button.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-
-            status.topAnchor.constraint(equalTo: button.bottomAnchor, constant: 8),
-            status.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            status.widthAnchor.constraint(equalToConstant: 520),
-            status.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-
-            container.trailingAnchor.constraint(greaterThanOrEqualTo: description.trailingAnchor),
+        let group = SettingsForm.group([
+            SettingsForm.row(
+                title: "mrkd command",
+                subtitle: "Open Markdown from Terminal with mrkd FILE.",
+                controls: [commandLineStatus, button]
+            ),
         ])
-
+        commandLineGroup = group
         refreshCommandLineStatus()
-        return container
+        return group
     }
 
     private var commandLineDestination: URL {
@@ -385,22 +287,38 @@ final class SettingsWindowController: NSWindowController {
 
     private func refreshCommandLineStatus() {
         guard let script = commandLineScript else {
-            commandLineStatusLabel.stringValue = "mrkd cannot locate its own executable, so the command cannot be installed."
+            commandLineStatus.show(
+                "Unavailable", tone: .attention,
+                details: "mrkd cannot locate its own executable, so the command cannot be installed."
+            )
+            commandLineButton.isHidden = true
+            show(nil, in: commandLineNote)
             return
         }
 
         let destination = commandLineDestination
-        commandLineStatusLabel.stringValue = LauncherInstaller.statusText(
-            status: LauncherInstaller.status(
-                existing: LauncherInstallation.existingEntry(at: destination),
-                desired: script
-            ),
-            displayPath: CommandLineLauncher.displayPath(
-                destination,
-                homeDirectory: URL(fileURLWithPath: NSHomeDirectory())
-            ),
-            pathState: shellPathState
+        let status = LauncherInstaller.status(
+            existing: LauncherInstallation.existingEntry(at: destination),
+            desired: script
         )
+        let displayPath = CommandLineLauncher.displayPath(
+            destination,
+            homeDirectory: URL(fileURLWithPath: NSHomeDirectory())
+        )
+        let row = LauncherInstaller.settingsStatus(status: status, displayPath: displayPath, pathState: shellPathState)
+        commandLineStatus.show(
+            row.text, tone: row.tone,
+            details: LauncherInstaller.statusText(status: status, displayPath: displayPath, pathState: shellPathState)
+        )
+        commandLineButton.title = row.action ?? ""
+        commandLineButton.isHidden = row.action == nil
+        show(row.note, in: commandLineNote)
+    }
+
+    private func show(_ text: String?, in note: NSTextField) {
+        note.stringValue = text ?? ""
+        note.isHidden = text == nil
+        updateNoteSpacing()
     }
 
     @objc private func installCommandLineTool(_ sender: NSButton) {
@@ -455,52 +373,34 @@ final class SettingsWindowController: NSWindowController {
 
     // MARK: - Quick Look
 
-    private func createQuickLookRow() -> NSView {
-        let status = NSTextField(labelWithString: "Checking…")
-        status.font = .systemFont(ofSize: 13)
-        quickLookStatusLabel = status
+    private func createQuickLookGroup() -> NSView {
+        quickLookStatus.show("Checking…", tone: .neutral)
 
         let button = NSButton(title: "Fix", target: self, action: #selector(repairQuickLook(_:)))
         button.bezelStyle = .rounded
-        button.controlSize = .small
         button.isHidden = true
         quickLookActionButton = button
 
-        let note = NSTextField(labelWithString: "")
-        note.font = .systemFont(ofSize: 11)
-        note.textColor = .secondaryLabelColor
-        note.isHidden = true
-        quickLookNoteLabel = note
+        let toggle = NSSwitch()
+        toggle.controlSize = .small
+        toggle.target = self
+        toggle.action = #selector(quickLookCheckAtLaunchChanged(_:))
+        toggle.setAccessibilityLabel("Check when mrkd starts")
+        quickLookSwitch = toggle
 
-        let checkbox = NSButton(
-            checkboxWithTitle: "Check when mrkd starts",
-            target: self,
-            action: #selector(quickLookCheckAtLaunchChanged(_:))
-        )
-        quickLookCheckbox = checkbox
-
-        // The button sits beside the status it acts on. Stacks, because a
-        // hidden arranged view takes no space.
-        let statusLine = NSStackView(views: [status, button])
-        statusLine.orientation = .horizontal
-        statusLine.alignment = .centerY
-        statusLine.spacing = 10
-
-        let row = NSStackView(views: [statusLine, note, checkbox])
-        row.orientation = .vertical
-        row.alignment = .leading
-        row.spacing = 6
-        row.setCustomSpacing(10, after: note)
-        row.translatesAutoresizingMaskIntoConstraints = false
-
+        let group = SettingsForm.group([
+            SettingsForm.row(title: "Finder previews", controls: [quickLookStatus, button]),
+            SettingsForm.row(title: "Check when mrkd starts", controls: [toggle]),
+        ])
+        quickLookGroup = group
         refreshQuickLookCheckbox()
-        return row
+        return group
     }
 
     private var appURL: URL { Bundle.main.bundleURL }
 
     private func refreshQuickLookCheckbox() {
-        quickLookCheckbox.state = QuickLookCheckPreferences(defaults: .standard).checksAtLaunch ? .on : .off
+        quickLookSwitch.state = QuickLookCheckPreferences(defaults: .standard).checksAtLaunch ? .on : .off
     }
 
     /// Runs the check off the main thread and shows the answer. Each request
@@ -515,7 +415,7 @@ final class SettingsWindowController: NSWindowController {
         quickLookActionButton.isEnabled = false
         if steps != nil {
             quickLookRepairRunning = true
-            quickLookStatusLabel.stringValue = "Fixing…"
+            quickLookStatus.show("Fixing…", tone: .neutral)
         }
 
         Task.detached(priority: .userInitiated) {
@@ -534,18 +434,16 @@ final class SettingsWindowController: NSWindowController {
 
         // The row stays short. The full explanation is one hover away.
         var details = QuickLookCheck.statusText(report, homeDirectory: URL(fileURLWithPath: NSHomeDirectory()))
-        let label = QuickLookCheck.settingsLabel(report)
+        let row = QuickLookCheck.settingsStatus(report)
         if let repairFailure {
             details = "The fix did not finish. \(repairFailure).\n\n" + details
-            quickLookStatusLabel.stringValue = "Fix didn’t work"
+            quickLookStatus.show("Fix didn’t work", tone: .attention, details: details)
         } else {
-            quickLookStatusLabel.stringValue = label.status
+            quickLookStatus.show(row.text, tone: row.tone, details: details)
         }
-        quickLookStatusLabel.toolTip = details
-        quickLookNoteLabel.stringValue = label.note ?? ""
-        quickLookNoteLabel.isHidden = label.note == nil
+        show(row.note, in: quickLookNote)
 
-        if let title = QuickLookCheck.actionTitle(report.registration) {
+        if let title = row.action {
             quickLookActionButton.title = title
             quickLookActionButton.isHidden = false
             quickLookActionButton.isEnabled = true
@@ -559,7 +457,7 @@ final class SettingsWindowController: NSWindowController {
         refreshQuickLookStatus(repair: QuickLookCheck.repairSteps(for: report, appPath: appURL.path))
     }
 
-    @objc private func quickLookCheckAtLaunchChanged(_ sender: NSButton) {
+    @objc private func quickLookCheckAtLaunchChanged(_ sender: NSSwitch) {
         QuickLookCheckPreferences(defaults: .standard).checksAtLaunch = sender.state == .on
     }
 

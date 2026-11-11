@@ -11,7 +11,11 @@ final class ThemePickerGridView: NSView {
     private var focusedIndex: Int = 0
 
     private let columns = 3
-    private let cardWidth: CGFloat = 180
+    /// Three cards and their gaps fill the same width as the Settings groups
+    /// below them, so the edges line up.
+    private var cardWidth: CGFloat {
+        (SettingsForm.contentWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns)
+    }
     private let cardHeight: CGFloat = 140
     private let spacing: CGFloat = 12
 
