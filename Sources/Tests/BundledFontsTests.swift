@@ -52,6 +52,33 @@ final class BundledFontsTests: XCTestCase {
         XCTAssertEqual(first, first.sorted { $0.path < $1.path })
     }
 
+    /// The Quick Look extension carries no fonts of its own. It must find the
+    /// ones in the app it is embedded in, or every preview falls back to the
+    /// system font for prose and diagrams alike (issue #18).
+    func testAnExtensionFindsTheFontsOfTheAppItIsEmbeddedIn() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mrkd-bundle-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let app = root.appendingPathComponent("mrkd.app")
+        let fonts = app.appendingPathComponent("Contents/Resources/Fonts")
+        let appex = app.appendingPathComponent("Contents/PlugIns/QLPlugin.appex")
+        try FileManager.default.createDirectory(at: fonts, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: appex.appendingPathComponent("Contents/Resources"),
+            withIntermediateDirectories: true
+        )
+        try Data().write(to: fonts.appendingPathComponent("Inter-Variable.ttf"))
+
+        // Paths are compared resolved: the temporary folder sits behind the
+        // /var -> /private/var link, and a directory listing reports the
+        // other side of it.
+        func resolved(_ urls: [URL]) -> [URL] { urls.map { $0.resolvingSymlinksInPath() } }
+        let expected = resolved([fonts.appendingPathComponent("Inter-Variable.ttf")])
+        XCTAssertEqual(resolved(BundledFonts.fontFiles(forBundleAt: app)), expected)
+        XCTAssertEqual(resolved(BundledFonts.fontFiles(forBundleAt: appex)), expected)
+    }
+
     func testADirectoryThatIsNotThereIsEmptyRatherThanFatal() {
         let missing = URL(fileURLWithPath: "/nonexistent/mrkd/Fonts")
 
