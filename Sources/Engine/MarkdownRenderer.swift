@@ -73,7 +73,10 @@ enum MarkdownRenderer {
         theme: Theme
     ) -> (blocks: [String], math: [MathSpan], tagPairs: [AgentTags.Pair]) {
         var math: [MathSpan] = []
-        let split = BlockSplitter.split(markdown)
+        var split = BlockSplitter.split(markdown)
+        if BlockSplitter.frontMatterLineCount(in: markdown) != nil {
+            split[0] = fencedFrontMatter(split[0])
+        }
         // Found before smartening, which would curl the quotes of an
         // attribute. `split` gives each paired tag a block of its own, so
         // pairing its blocks finds the pairs it found in the lines.
@@ -84,6 +87,21 @@ enum MarkdownRenderer {
             return theme.smartTypographyAllowed ? smartenMarkdown(source) : source
         }
         return (blocks, math, tagPairs)
+    }
+
+    /// Front matter rewritten as a fenced YAML code block, so it shows as
+    /// what it is rather than as a rule and a run-on paragraph.
+    ///
+    /// Only the two delimiter lines change, so the block keeps its line
+    /// count and every later block keeps the start line the changed-block
+    /// highlight maps it by. The fence is longer than any backtick run that
+    /// opens a line inside, so no YAML line can close it early.
+    private static func fencedFrontMatter(_ block: String) -> String {
+        let lines = block.components(separatedBy: "\n")
+        let body = lines.dropFirst().dropLast()
+        let longestRun = body.map { $0.drop(while: { $0 == " " }).prefix(while: { $0 == "`" }).count }.max() ?? 0
+        let fence = String(repeating: "`", count: max(3, longestRun + 1))
+        return ([fence + "yaml"] + body + [fence]).joined(separator: "\n")
     }
 
     /// What the reader gets when cmark itself will not start. Rare enough
@@ -221,10 +239,21 @@ enum MarkdownRenderer {
             result.append(NSAttributedString(string: "\n", attributes: theme.bodyAttributes))
 
         case CMARK_NODE_THEMATIC_BREAK:
-            let separator = String(repeating: "\u{2500}", count: 60) // Box-drawing horizontal line
+            // A line along the bottom of an empty paragraph as wide as the
+            // column. Drawn characters would wrap when the column is
+            // narrower than they are, and VoiceOver would read each one.
+            let rule = NSTextBlock()
+            rule.setValue(100, type: .percentageValueType, for: .width)
+            rule.setBorderColor(theme.tableBorderColor, for: .maxY)
+            rule.setWidth(1, type: .absoluteValueType, for: .border, edge: .maxY)
+            let style = NSMutableParagraphStyle()
+            style.textBlocks = [rule]
+            // A short line, so the rule sits midway between the blank
+            // lines around it rather than at the foot of a full text line.
             var attrs = theme.bodyAttributes
-            attrs[.foregroundColor] = NSColor.separatorColor
-            result.append(NSAttributedString(string: separator + "\n", attributes: attrs))
+            attrs[.font] = theme.font(size: theme.baseFontSize * 0.5, weight: .regular)
+            attrs[.paragraphStyle] = style
+            result.append(NSAttributedString(string: "\u{200B}\n", attributes: attrs))
             appendNewlines(result, count: 1)
 
         case CMARK_NODE_EMPH:

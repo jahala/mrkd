@@ -14,7 +14,14 @@ enum BlockSplitter {
         // code-blocks-or-prose, which mangles syntax highlighting.
         var result: [String] = []
         var current: [String] = []
-        let lines = raw.components(separatedBy: "\n")
+        var lines = raw.components(separatedBy: "\n")
+
+        // Front matter is one block, blank lines and all.
+        if let count = frontMatterLineCount(in: raw) {
+            result.append(lines[..<count].joined(separator: "\n"))
+            lines.removeFirst(count)
+        }
+
         let fences = fenceRoles(of: lines)
         // An agent tag line that has a partner is a block of its own, so a
         // tight `<thinking>` … `</thinking>` parses the same as one with
@@ -52,6 +59,26 @@ enum BlockSplitter {
         }
         flush()
         return result
+    }
+
+    /// How many lines the YAML front matter at the start of `raw` takes,
+    /// both delimiters included, or nil when there is none.
+    ///
+    /// This follows the convention GitHub, Jekyll and Obsidian share: the
+    /// very first line is `---`, and the next line that is `---` or `...`
+    /// closes it. Anywhere else, `---` is a rule or a heading underline. An
+    /// opening line with nothing to close it is a rule too.
+    static func frontMatterLineCount(in raw: String) -> Int? {
+        let start = raw.hasPrefix("\u{FEFF}") ? raw.dropFirst() : Substring(raw)
+        guard start.hasPrefix("---") else { return nil }
+
+        let lines = start.components(separatedBy: "\n")
+        func bare(_ line: String) -> String { line.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard bare(lines[0]) == "---" else { return nil }
+        for index in lines.indices.dropFirst() where bare(lines[index]) == "---" || bare(lines[index]) == "..." {
+            return index + 1
+        }
+        return nil
     }
 
     private enum FenceRole {

@@ -224,6 +224,25 @@ final class AgentTagBlockTests: XCTestCase {
         XCTAssertEqual(sourceBlock(of: "thinking"), "<thinking>", "the label belongs to the open tag")
     }
 
+    /// Front matter takes the first block, so every tag pair after it sits
+    /// one block further on. The pairs and the source indices must both
+    /// count it.
+    func testATagPairAfterFrontMatterIsStillABox() {
+        let source = "---\ntitle: Plan\n\nstatus: draft\n---\n<thinking>\nreason\n</thinking>\n\nAfter."
+        let blocks = BlockSplitter.split(source)
+        XCTAssertEqual(blocks, ["---\ntitle: Plan\n\nstatus: draft\n---", "<thinking>", "reason", "</thinking>", "After."])
+
+        let rendered = render(source)
+        let thinking = box(labelled: "thinking", in: rendered)
+        XCTAssertNotNil(thinking, "the pair after front matter must still be a box")
+        if let thinking {
+            XCTAssertTrue(isInside(thinking, text: "reason", in: rendered))
+            XCTAssertFalse(isInside(thinking, text: "title: Plan", in: rendered))
+        }
+        let after = location(of: "After.", in: rendered)!
+        XCTAssertEqual(rendered.attribute(.sourceBlockIndex, at: after, effectiveRange: nil) as? Int, 4)
+    }
+
     func testHeadingsInsideABoxReachTheContents() {
         let rendered = render("# Report\n\n<thinking>\n## Inside the box\nText.\n</thinking>")
         let titles = TOCBuilder.build(from: rendered).map(\.text)
