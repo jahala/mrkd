@@ -14,8 +14,15 @@ enum BlockSplitter {
         // code-blocks-or-prose, which mangles syntax highlighting.
         var result: [String] = []
         var current: [String] = []
-        var fenceMarker: String? = nil  // nil → outside, "```" or "~~~" → inside
         let lines = raw.components(separatedBy: "\n")
+        let fences = fenceRoles(of: lines)
+        // An agent tag line that has a partner is a block of its own, so a
+        // tight `<thinking>` … `</thinking>` parses the same as one with
+        // blank lines around its content. See `AgentTags`.
+        let tagLines = Set(
+            AgentTags.pairs(in: lines, isCode: { fences[$0] != .outside })
+                .flatMap { [$0.open, $0.close] }
+        )
 
         func flush() {
             let joined = current.joined(separator: "\n")
@@ -24,35 +31,60 @@ enum BlockSplitter {
             current.removeAll(keepingCapacity: true)
         }
 
-        for line in lines {
-            let trimmedStart = line.drop(while: { $0 == " " })
-            if let marker = fenceMarker {
-                current.append(line)
-                if trimmedStart.hasPrefix(marker) {
-                    fenceMarker = nil
-                }
-                continue
-            }
-            if trimmedStart.hasPrefix("```") {
-                if !current.isEmpty { flush() }
-                current.append(line)
-                fenceMarker = "```"
-                continue
-            }
-            if trimmedStart.hasPrefix("~~~") {
-                if !current.isEmpty { flush() }
-                current.append(line)
-                fenceMarker = "~~~"
-                continue
-            }
-            if line.trimmingCharacters(in: .whitespaces).isEmpty {
+        for (index, line) in lines.enumerated() {
+            switch fences[index] {
+            case .opening:
                 flush()
-            } else {
                 current.append(line)
+            case .inside:
+                current.append(line)
+            case .outside where tagLines.contains(index):
+                flush()
+                current.append(line)
+                flush()
+            case .outside:
+                if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                    flush()
+                } else {
+                    current.append(line)
+                }
             }
         }
         flush()
         return result
+    }
+
+    private enum FenceRole {
+        case outside
+        /// The line that opens a fence.
+        case opening
+        /// A line inside a fence, its closing line included.
+        case inside
+    }
+
+    /// Where each line stands relative to fenced code (``` or ~~~).
+    private static func fenceRoles(of lines: [String]) -> [FenceRole] {
+        var roles: [FenceRole] = []
+        roles.reserveCapacity(lines.count)
+        var fenceMarker: String? = nil  // nil → outside, "```" or "~~~" → inside
+        for line in lines {
+            let trimmedStart = line.drop(while: { $0 == " " })
+            if let marker = fenceMarker {
+                roles.append(.inside)
+                if trimmedStart.hasPrefix(marker) {
+                    fenceMarker = nil
+                }
+            } else if trimmedStart.hasPrefix("```") {
+                roles.append(.opening)
+                fenceMarker = "```"
+            } else if trimmedStart.hasPrefix("~~~") {
+                roles.append(.opening)
+                fenceMarker = "~~~"
+            } else {
+                roles.append(.outside)
+            }
+        }
+        return roles
     }
 
     /// 1-based line number at which each block begins once the blocks are

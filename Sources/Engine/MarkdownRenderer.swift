@@ -24,7 +24,7 @@ enum MarkdownRenderer {
     static func render(_ markdown: String, theme: Theme = DefaultTheme()) -> NSMutableAttributedString {
         registerGFMExtensions()
 
-        let (blocks, math) = parserBlocks(markdown, theme: theme)
+        let (blocks, math, tagPairs) = parserBlocks(markdown, theme: theme)
         let source = blocks.joined(separator: "\n\n")
 
         let options = CMARK_OPT_DEFAULT | CMARK_OPT_UNSAFE
@@ -52,7 +52,7 @@ enum MarkdownRenderer {
             of: doc,
             into: result,
             theme: theme,
-            blockStartLines: BlockSplitter.startLines(joining: blocks)
+            layout: SourceLayout(blocks: blocks, tagPairs: tagPairs)
         )
         trimTrailingNewlines(result)
         substituteMath(math, in: result, theme: theme)
@@ -61,7 +61,8 @@ enum MarkdownRenderer {
     }
 
     /// The blocks handed to cmark, in the order they are joined by a blank
-    /// line, together with every formula lifted out of them.
+    /// line, together with every formula lifted out of them and the agent
+    /// tag pairs among them.
     ///
     /// Splitting first is what makes smart typography fence-aware; the
     /// non-smart path splits too so that source-block indices mean the same
@@ -70,14 +71,19 @@ enum MarkdownRenderer {
     private static func parserBlocks(
         _ markdown: String,
         theme: Theme
-    ) -> (blocks: [String], math: [MathSpan]) {
+    ) -> (blocks: [String], math: [MathSpan], tagPairs: [AgentTags.Pair]) {
         var math: [MathSpan] = []
-        let blocks = BlockSplitter.split(markdown).map { block -> String in
+        let split = BlockSplitter.split(markdown)
+        // Found before smartening, which would curl the quotes of an
+        // attribute. `split` gives each paired tag a block of its own, so
+        // pairing its blocks finds the pairs it found in the lines.
+        let tagPairs = AgentTags.pairs(in: split)
+        let blocks = split.map { block -> String in
             let (source, spans) = MathSpanScanner.extract(from: block, firstIndex: math.count)
             math.append(contentsOf: spans)
             return theme.smartTypographyAllowed ? smartenMarkdown(source) : source
         }
-        return (blocks, math)
+        return (blocks, math, tagPairs)
     }
 
     /// What the reader gets when cmark itself will not start. Rare enough
@@ -724,13 +730,7 @@ enum MarkdownRenderer {
         block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .maxY)
         block.setValue(100, type: .percentageValueType, for: .width)
 
-        // Apply the text block to all paragraphs
-        admonitionResult.enumerateAttribute(.paragraphStyle, in: range, options: []) { value, subRange, _ in
-            let existing = (value as? NSParagraphStyle) ?? NSParagraphStyle.default
-            let style = existing.mutableCopy() as! NSMutableParagraphStyle
-            style.textBlocks = [block] + existing.textBlocks
-            admonitionResult.addAttribute(.paragraphStyle, value: style, range: subRange)
-        }
+        wrapParagraphs(of: admonitionResult, in: range, with: block)
 
         result.append(admonitionResult)
     }
@@ -764,16 +764,25 @@ enum MarkdownRenderer {
 
         quoteResult.addAttribute(.foregroundColor, value: theme.blockquoteColor, range: range)
 
-        // Add the text block to every paragraph style, preserving existing formatting.
-        // Prepend (outermost first) so nested blockquotes keep their inner bars.
-        quoteResult.enumerateAttribute(.paragraphStyle, in: range, options: []) { value, subRange, _ in
+        wrapParagraphs(of: quoteResult, in: range, with: block)
+
+        result.append(quoteResult)
+    }
+
+    /// Put every paragraph in `range` inside `block`, keeping its other
+    /// formatting. The block goes first (outermost), so a quote or box
+    /// nested inside keeps its own border within this one.
+    private static func wrapParagraphs(
+        of string: NSMutableAttributedString,
+        in range: NSRange,
+        with block: NSTextBlock
+    ) {
+        string.enumerateAttribute(.paragraphStyle, in: range, options: []) { value, subRange, _ in
             let existing = (value as? NSParagraphStyle) ?? NSParagraphStyle.default
             let style = existing.mutableCopy() as! NSMutableParagraphStyle
             style.textBlocks = [block] + existing.textBlocks
-            quoteResult.addAttribute(.paragraphStyle, value: style, range: subRange)
+            string.addAttribute(.paragraphStyle, value: style, range: subRange)
         }
-
-        result.append(quoteResult)
     }
 
     private static func renderStrikethrough(
@@ -1182,7 +1191,7 @@ enum MarkdownRenderer {
     ) -> NSMutableAttributedString {
         registerGFMExtensions()
 
-        let (blocks, math) = parserBlocks(markdown, theme: theme)
+        let (blocks, math, tagPairs) = parserBlocks(markdown, theme: theme)
         let source = blocks.joined(separator: "\n\n")
 
         let options = CMARK_OPT_DEFAULT | CMARK_OPT_UNSAFE
@@ -1215,7 +1224,7 @@ enum MarkdownRenderer {
             of: doc,
             into: result,
             theme: theme,
-            blockStartLines: BlockSplitter.startLines(joining: blocks)
+            layout: SourceLayout(blocks: blocks, tagPairs: tagPairs)
         ) { renderedCount in
             guard !deliveredFirstScreen, renderedCount >= firstScreenBlocks else { return }
             deliveredFirstScreen = true
@@ -1246,6 +1255,25 @@ enum MarkdownRenderer {
         return copy
     }
 
+    /// Where each source block starts in the string cmark parsed, and where
+    /// each agent tag pair opens and closes. Together they let the walk over
+    /// parsed nodes find its way back to the markdown.
+    private struct SourceLayout {
+        /// `BlockSplitter.startLines` of the blocks cmark parsed.
+        let startLines: [Int]
+        /// Tag pairs keyed by the line their opening tag starts on.
+        let tagPairs: [Int: AgentTags.Pair]
+
+        init(blocks: [String], tagPairs: [AgentTags.Pair]) {
+            let startLines = BlockSplitter.startLines(joining: blocks)
+            self.startLines = startLines
+            self.tagPairs = Dictionary(
+                tagPairs.map { (startLines[$0.open], $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+        }
+    }
+
     /// Render a document's top-level blocks, tagging each rendered run with
     /// the index of the source block it started in. `onBlockRendered` is
     /// called after each block with the number rendered so far — that is the
@@ -1255,15 +1283,62 @@ enum MarkdownRenderer {
         of doc: CMarkNode,
         into result: NSMutableAttributedString,
         theme: Theme,
-        blockStartLines: [Int],
+        layout: SourceLayout,
         onBlockRendered: ((Int) -> Void)? = nil
     ) {
         var renderedCount = 0
-        var child = cmark_node_first_child(doc)
+        renderBlocks(
+            from: cmark_node_first_child(doc),
+            upTo: nil,
+            into: result,
+            theme: theme,
+            layout: layout
+        ) {
+            renderedCount += 1
+            onBlockRendered?(renderedCount)
+        }
+    }
+
+    /// Render sibling blocks from `first` up to, not including, `end` (nil:
+    /// to the last sibling). An agent tag pair among them becomes one box,
+    /// and `onBlockRendered` hears of it once, after the whole box.
+    private static func renderBlocks(
+        from first: CMarkNode?,
+        upTo end: CMarkNode?,
+        into result: NSMutableAttributedString,
+        theme: Theme,
+        layout: SourceLayout,
+        onBlockRendered: (() -> Void)? = nil
+    ) {
+        var child = first
         var previousType: cmark_node_type? = nil
         var previousExtensionType: String? = nil
 
-        while let block = child {
+        while let block = child, block != end {
+            let startLine = Int(cmark_node_get_start_line(block))
+
+            if let pair = layout.tagPairs[startLine],
+               let closing = sibling(
+                   after: block,
+                   upTo: end,
+                   startingOnLine: layout.startLines[pair.close]
+               ) {
+                renderTagBox(
+                    pair,
+                    contents: cmark_node_next(block),
+                    upTo: closing,
+                    into: result,
+                    theme: theme,
+                    layout: layout
+                )
+                // Spaced from what follows the way a blockquote is.
+                previousType = CMARK_NODE_BLOCK_QUOTE
+                previousExtensionType = nil
+                onBlockRendered?()
+                child = cmark_node_next(closing)
+                continue
+            }
+
             let blockType = cmark_node_get_type(block)
             let startPosition = result.length
 
@@ -1294,8 +1369,8 @@ enum MarkdownRenderer {
 
             if result.length > startPosition,
                let sourceIndex = BlockSplitter.blockIndex(
-                   forLine: Int(cmark_node_get_start_line(block)),
-                   startLines: blockStartLines
+                   forLine: startLine,
+                   startLines: layout.startLines
                ) {
                 result.addAttribute(
                     .sourceBlockIndex,
@@ -1304,10 +1379,89 @@ enum MarkdownRenderer {
                 )
             }
 
-            renderedCount += 1
-            onBlockRendered?(renderedCount)
-
+            onBlockRendered?()
             child = cmark_node_next(block)
         }
+    }
+
+    /// The sibling after `node`, and before `end`, that starts on `line`.
+    ///
+    /// A closing tag is a block of its own, so cmark starts a node on its
+    /// line, unless something that runs past blank lines has swallowed it,
+    /// such as an HTML comment left open. Then there is no node, and the
+    /// opening tag renders as the text it is rather than as half a box.
+    private static func sibling(
+        after node: CMarkNode,
+        upTo end: CMarkNode?,
+        startingOnLine line: Int
+    ) -> CMarkNode? {
+        var candidate = cmark_node_next(node)
+        while let next = candidate, next != end {
+            let start = Int(cmark_node_get_start_line(next))
+            if start == line { return next }
+            if start > line { return nil }
+            candidate = cmark_node_next(next)
+        }
+        return nil
+    }
+
+    /// An agent tag pair as a box: the tag name as a label, then the blocks
+    /// between the tags, rendered as any other markdown. The tags themselves
+    /// do not show. The box is neutral, with no colour of its own, because
+    /// tag names are open-ended and none means more than another.
+    private static func renderTagBox(
+        _ pair: AgentTags.Pair,
+        contents first: CMarkNode?,
+        upTo closing: CMarkNode,
+        into result: NSMutableAttributedString,
+        theme: Theme,
+        layout: SourceLayout
+    ) {
+        let boxStart = result.length
+
+        let labelStyle = NSMutableParagraphStyle()
+        labelStyle.lineSpacing = theme.baseFontSize * 0.35
+        labelStyle.paragraphSpacing = theme.baseFontSize * 0.35
+        result.append(NSAttributedString(
+            string: pair.name + "\n",
+            attributes: [
+                .font: theme.font(size: theme.codeFontSize, weight: .semibold),
+                .foregroundColor: theme.textColor,
+                .paragraphStyle: labelStyle,
+                .sourceBlockIndex: pair.open,
+            ]
+        ))
+
+        renderBlocks(from: first, upTo: closing, into: result, theme: theme, layout: layout)
+
+        // The box ends with its last line. The blank line after it is the
+        // gap to the next block and stays outside, as after a code block.
+        let text = result.string as NSString
+        var boxEnd = result.length
+        while boxEnd - 2 >= boxStart,
+              text.character(at: boxEnd - 1) == 0x0A,
+              text.character(at: boxEnd - 2) == 0x0A {
+            boxEnd -= 1
+        }
+
+        // A full outline, heavier on the left as a GitHub alert is, drawn
+        // in the colour the theme gives a blockquote's bar. No fill, so a
+        // code block or table inside keeps its own background.
+        let block = NSTextBlock()
+        block.setBorderColor(theme.blockquoteBarColor)
+        block.setWidth(1, type: .absoluteValueType, for: .border)
+        block.setWidth(3, type: .absoluteValueType, for: .border, edge: .minX)
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .minX)
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .maxX)
+        block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .minY)
+        block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .maxY)
+        block.setValue(100, type: .percentageValueType, for: .width)
+        wrapParagraphs(
+            of: result,
+            in: NSRange(location: boxStart, length: boxEnd - boxStart),
+            with: block
+        )
+
+        appendNewlines(result, count: 1)
     }
 }

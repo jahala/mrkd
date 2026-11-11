@@ -1,0 +1,264 @@
+import XCTest
+import AppKit
+@testable import mrkd
+
+/// Agent tag pairs such as `<thinking>` … `</thinking>` render as a labelled
+/// box with the markdown between the tags rendered inside it.
+final class AgentTagBlockTests: XCTestCase {
+
+    // MARK: - Helpers
+
+    private func render(_ markdown: String, theme: Theme = DefaultTheme()) -> NSAttributedString {
+        MarkdownRenderer.render(markdown, theme: theme)
+    }
+
+    /// Location of the first character of `text` in the rendered string.
+    private func location(of text: String, in rendered: NSAttributedString) -> Int? {
+        let range = (rendered.string as NSString).range(of: text)
+        return range.location == NSNotFound ? nil : range.location
+    }
+
+    private func textBlocks(at location: Int, in rendered: NSAttributedString) -> [NSTextBlock] {
+        let style = rendered.attribute(.paragraphStyle, at: location, effectiveRange: nil) as? NSParagraphStyle
+        return style?.textBlocks ?? []
+    }
+
+    /// The box a label starts: the outermost text block on the label's line.
+    /// A label is the tag name alone on its line.
+    private func box(labelled name: String, in rendered: NSAttributedString) -> NSTextBlock? {
+        let text = rendered.string as NSString
+        var searchFrom = 0
+        while searchFrom < text.length {
+            let found = text.range(of: name, range: NSRange(location: searchFrom, length: text.length - searchFrom))
+            guard found.location != NSNotFound else { return nil }
+            let line = text.paragraphRange(for: found)
+            let lineText = text.substring(with: line).trimmingCharacters(in: .newlines)
+            if lineText == name {
+                return textBlocks(at: found.location, in: rendered).last
+            }
+            searchFrom = NSMaxRange(found)
+        }
+        return nil
+    }
+
+    private func isInside(_ box: NSTextBlock, text: String, in rendered: NSAttributedString) -> Bool {
+        guard let at = location(of: text, in: rendered) else { return false }
+        return textBlocks(at: at, in: rendered).contains { $0 === box }
+    }
+
+    private func headingLevel(of text: String, in rendered: NSAttributedString) -> Int? {
+        guard let at = location(of: text, in: rendered) else { return nil }
+        return rendered.attribute(.accessibilityHeadingLevel, at: at, effectiveRange: nil) as? Int
+    }
+
+    // MARK: - Tight and spaced forms
+
+    func testTightThinkingBlockRendersAsALabelledBoxOfMarkdown() {
+        let rendered = render("""
+        Intro.
+
+        <thinking>
+        ## Plan
+        - read the file
+        - fix the **bug**
+        </thinking>
+
+        After.
+        """)
+
+        XCTAssertFalse(rendered.string.contains("<thinking>"), "the open tag must not show as text")
+        XCTAssertFalse(rendered.string.contains("</thinking>"), "the close tag must not show as text")
+        guard let box = box(labelled: "thinking", in: rendered) else {
+            return XCTFail("no box labelled 'thinking' in: \(rendered.string)")
+        }
+        XCTAssertEqual(headingLevel(of: "Plan", in: rendered), 2, "the heading inside must render as a heading")
+        XCTAssertTrue(isInside(box, text: "Plan", in: rendered))
+        XCTAssertTrue(isInside(box, text: "read the file", in: rendered))
+        XCTAssertTrue(rendered.string.contains("\u{2022}"), "the list inside must render with bullets")
+        XCTAssertFalse(rendered.string.contains("**"), "emphasis inside must render, not show its markers")
+        XCTAssertFalse(isInside(box, text: "Intro.", in: rendered))
+        XCTAssertFalse(isInside(box, text: "After.", in: rendered))
+    }
+
+    func testSpacedThinkingBlockRendersAsALabelledBoxOfMarkdown() {
+        let rendered = render("""
+        <thinking>
+
+        First thought.
+
+        Second thought.
+
+        </thinking>
+
+        After.
+        """)
+
+        XCTAssertFalse(rendered.string.contains("<thinking>"))
+        XCTAssertFalse(rendered.string.contains("</thinking>"))
+        guard let box = box(labelled: "thinking", in: rendered) else {
+            return XCTFail("no box labelled 'thinking' in: \(rendered.string)")
+        }
+        XCTAssertTrue(isInside(box, text: "First thought.", in: rendered))
+        XCTAssertTrue(isInside(box, text: "Second thought.", in: rendered))
+        XCTAssertFalse(isInside(box, text: "After.", in: rendered))
+    }
+
+    func testTightBlockWithABlankLineInsideStaysOneBox() {
+        let rendered = render("<answer>\nFirst part.\n\nSecond part.\n</answer>")
+        guard let box = box(labelled: "answer", in: rendered) else {
+            return XCTFail("no box labelled 'answer' in: \(rendered.string)")
+        }
+        XCTAssertTrue(isInside(box, text: "First part.", in: rendered))
+        XCTAssertTrue(isInside(box, text: "Second part.", in: rendered))
+    }
+
+    func testCodeAndMathInsideABoxRender() {
+        let rendered = render("<analysis>\n```swift\nlet x = 1\n```\n$$x^2$$\n</analysis>")
+        guard let box = box(labelled: "analysis", in: rendered) else {
+            return XCTFail("no box labelled 'analysis' in: \(rendered.string)")
+        }
+        XCTAssertTrue(isInside(box, text: "let x = 1", in: rendered))
+        XCTAssertFalse(rendered.string.contains("```"), "the fence inside must render as code")
+        XCTAssertFalse(rendered.string.contains("$$"), "the formula inside must render as math")
+    }
+
+    // MARK: - Names and attributes
+
+    func testAttributesAreLeftOutOfTheLabel() {
+        let rendered = render("<example index=\"1\" kind='short'>\nAn example.\n</example>")
+        XCTAssertFalse(rendered.string.contains("index"), "attributes must not show")
+        guard let box = box(labelled: "example", in: rendered) else {
+            return XCTFail("no box labelled 'example' in: \(rendered.string)")
+        }
+        XCTAssertTrue(isInside(box, text: "An example.", in: rendered))
+    }
+
+    func testHyphenAndUnderscoreNamesAreBoxed() {
+        let rendered = render("<system-reminder>\nBe brief.\n</system-reminder>\n\n<search_results>\nNone.\n</search_results>")
+        XCTAssertNotNil(box(labelled: "system-reminder", in: rendered), rendered.string)
+        XCTAssertNotNil(box(labelled: "search_results", in: rendered), rendered.string)
+    }
+
+    // MARK: - Real HTML and other cases keep today's behaviour
+
+    func testHTMLElementsKeepRenderingAsBefore() {
+        for name in ["div", "details", "DIV", "section", "search", "center"] {
+            let source = "<\(name)>\nhello\n</\(name)>\n\nAfter."
+            let rendered = render(source)
+            XCTAssertTrue(rendered.string.contains("<\(name)>"), "<\(name)> must still show as raw HTML")
+            XCTAssertTrue(rendered.string.contains("</\(name)>"), "</\(name)> must still show as raw HTML")
+            XCTAssertNil(box(labelled: name, in: rendered), "<\(name)> is HTML and must not become a box")
+            XCTAssertEqual(BlockSplitter.split(source), ["<\(name)>\nhello\n</\(name)>", "After."])
+        }
+    }
+
+    func testTagsInsideAFencedCodeBlockStayCode() {
+        let source = "```\n<thinking>\nnot a box\n</thinking>\n```"
+        let rendered = render(source)
+        XCTAssertTrue(rendered.string.contains("<thinking>\nnot a box\n</thinking>"))
+        XCTAssertNil(box(labelled: "thinking", in: rendered))
+        XCTAssertEqual(BlockSplitter.split(source), [source])
+    }
+
+    func testAnOpenTagWithoutACloseKeepsTodaysBehaviour() {
+        let source = "<thinking>\nstill thinking"
+        let rendered = render(source)
+        XCTAssertTrue(rendered.string.contains("<thinking>"))
+        XCTAssertNil(box(labelled: "thinking", in: rendered))
+        XCTAssertEqual(BlockSplitter.split(source), [source])
+    }
+
+    func testIndentedTagsAreNotTopLevel() {
+        let source = "- item\n  <thinking>\n  inside the list\n  </thinking>"
+        XCTAssertEqual(BlockSplitter.split(source), [source])
+        XCTAssertNil(box(labelled: "thinking", in: render(source)))
+    }
+
+    // MARK: - Nesting
+
+    func testNestedPairsRenderAsBoxesInsideBoxes() {
+        let rendered = render("""
+        <outer>
+        Outer text.
+        <inner>
+        Inner text.
+        </inner>
+        More outer text.
+        </outer>
+        """)
+        guard let outer = box(labelled: "outer", in: rendered),
+              let inner = box(labelled: "inner", in: rendered) else {
+            return XCTFail("missing a box in: \(rendered.string)")
+        }
+        XCTAssertFalse(outer === inner)
+        XCTAssertTrue(isInside(outer, text: "Outer text.", in: rendered))
+        XCTAssertTrue(isInside(outer, text: "Inner text.", in: rendered))
+        XCTAssertTrue(isInside(inner, text: "Inner text.", in: rendered))
+        XCTAssertFalse(isInside(inner, text: "Outer text.", in: rendered))
+        XCTAssertTrue(isInside(outer, text: "More outer text.", in: rendered))
+        XCTAssertFalse(isInside(inner, text: "More outer text.", in: rendered))
+    }
+
+    // MARK: - Source blocks, contents and progressive render
+
+    func testTagLinesAreBlocksOfTheirOwn() {
+        XCTAssertEqual(
+            BlockSplitter.split("Intro.\n<thinking>\nreason\n</thinking>\nAfter."),
+            ["Intro.", "<thinking>", "reason", "</thinking>", "After."]
+        )
+    }
+
+    func testEveryRenderedRunPointsAtTheBlockItCameFrom() {
+        let source = "<thinking>\nreason\n</thinking>\n\nAfter."
+        let blocks = BlockSplitter.split(source)
+        let rendered = render(source)
+
+        func sourceBlock(of text: String) -> String? {
+            guard let at = location(of: text, in: rendered),
+                  let index = rendered.attribute(.sourceBlockIndex, at: at, effectiveRange: nil) as? Int,
+                  blocks.indices.contains(index) else { return nil }
+            return blocks[index]
+        }
+        XCTAssertEqual(sourceBlock(of: "reason"), "reason")
+        XCTAssertEqual(sourceBlock(of: "After."), "After.", "the block after a tag pair must keep its own index")
+        XCTAssertEqual(sourceBlock(of: "thinking"), "<thinking>", "the label belongs to the open tag")
+    }
+
+    func testHeadingsInsideABoxReachTheContents() {
+        let rendered = render("# Report\n\n<thinking>\n## Inside the box\nText.\n</thinking>")
+        let titles = TOCBuilder.build(from: rendered).map(\.text)
+        XCTAssertEqual(titles, ["Report", "Inside the box"])
+    }
+
+    func testProgressiveRenderMatchesTheOnePassRender() {
+        let source = "Intro.\n\n<thinking>\nOne.\n\nTwo.\n</thinking>\n\nAfter."
+        var firstScreen: NSAttributedString?
+        let progressive = MarkdownRenderer.renderProgressive(source, firstScreenBlocks: 1) { firstScreen = $0 }
+        XCTAssertEqual(progressive.string, render(source).string)
+        XCTAssertEqual(
+            firstScreen?.string.trimmingCharacters(in: .newlines),
+            "Intro.",
+            "a first screen holds whole top-level blocks"
+        )
+    }
+
+    // MARK: - Theme
+
+    func testTheBoxIsDrawnInTheThemesOwnColours() {
+        for theme in [DefaultTheme(), GitHubDark(), HighContrastTheme(wrapping: GitHubLight())] as [Theme] {
+            let rendered = render("<thinking>\nText.\n</thinking>", theme: theme)
+            guard let box = box(labelled: "thinking", in: rendered),
+                  let label = location(of: "thinking", in: rendered) else {
+                return XCTFail("no box for \(theme.name)")
+            }
+            XCTAssertEqual(box.borderColor(for: .minX), theme.blockquoteBarColor, theme.name)
+            XCTAssertEqual(box.borderColor(for: .maxY), theme.blockquoteBarColor, theme.name)
+            XCTAssertNil(box.backgroundColor, "no fill, so code blocks inside keep theirs (\(theme.name))")
+            XCTAssertEqual(
+                rendered.attribute(.foregroundColor, at: label, effectiveRange: nil) as? NSColor,
+                theme.textColor,
+                "the label is body text colour, which every theme already holds to AA (\(theme.name))"
+            )
+        }
+    }
+}
