@@ -106,10 +106,11 @@ final class OpenWithButton: NSView {
     // MARK: - Button Action
 
     @objc private func buttonClicked() {
-        // Every app that can open this file, except this one.
-        let ownBundleURL = Bundle.main.bundleURL.standardizedFileURL
-        let apps = NSWorkspace.shared.urlsForApplications(toOpen: fileURL)
-            .filter { $0.standardizedFileURL != ownBundleURL }
+        let apps = Self.uniqueApps(
+            NSWorkspace.shared.urlsForApplications(toOpen: fileURL),
+            excluding: Bundle.main.bundleIdentifier,
+            bundleIdentifier: { Bundle(url: $0)?.bundleIdentifier }
+        )
 
         let menu = Self.menu(listing: apps)
         for item in menu.items where item.representedObject != nil {
@@ -120,6 +121,25 @@ final class OpenWithButton: NSView {
         // Show menu below the button
         let location = NSPoint(x: bounds.minX, y: bounds.minY)
         menu.popUp(positioning: nil, at: location, in: self)
+    }
+
+    /// The apps to offer, each once. macOS lists every copy it knows of:
+    /// old versions, build folders, a second download. Copies share a bundle
+    /// identifier, so the first copy of each identifier is kept, in the order
+    /// macOS gives. An app without one is told apart by its path. The app the
+    /// menu is shown in is left out. In Quick Look, `ownIdentifier` is the
+    /// extension's own, so mrkd stays on the list there.
+    static func uniqueApps(
+        _ apps: [URL],
+        excluding ownIdentifier: String?,
+        bundleIdentifier: (URL) -> String?
+    ) -> [URL] {
+        var seen = Set<String>()
+        return apps.filter { app in
+            let identifier = bundleIdentifier(app)
+            if let identifier, identifier == ownIdentifier { return false }
+            return seen.insert(identifier ?? app.standardizedFileURL.path).inserted
+        }
     }
 
     /// One item per app, named and with its icon, carrying the app's URL.
