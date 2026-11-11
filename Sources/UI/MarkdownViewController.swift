@@ -66,11 +66,12 @@ final class MarkdownViewController: NSViewController {
     /// in a row. Waiting this long after the last one turns a burst into one
     /// render, and keeps the file from being read mid-write.
     private static let liveReloadDebounce: TimeInterval = 0.12
-    private static let articleMaxWidth: CGFloat = 800
-    private static let articleMinHorizontalPadding: CGFloat = 60
     private static let tocWidth: CGFloat = 200
     private static let tocRightMargin: CGFloat = 24
-    private static let tocVisibilityThreshold: CGFloat = 1280
+    /// Clear space between the column's right edge and the contents
+    /// sidebar. The sidebar has no background, so it only shows when the
+    /// margin beside the column holds it and this gap.
+    private static let tocColumnGap: CGFloat = 16
     /// How far into the viewport a heading can sit and still count as the one
     /// the reader is under. Shared by the TOC's active-entry highlight and by
     /// the live-reload reading anchor, so both agree on where "here" is.
@@ -214,19 +215,24 @@ final class MarkdownViewController: NSViewController {
 
     override func viewDidLayout() {
         super.viewDidLayout()
+        layOutColumn()
+    }
+
+    /// Size and centre the text column for the current view width and
+    /// reading width setting.
+    private func layOutColumn() {
         guard let container = textView.textContainer else { return }
         let windowW = view.bounds.width
-        let articleW = min(Self.articleMaxWidth, windowW - 2 * Self.articleMinHorizontalPadding)
-        let sideInset = max(Self.articleMinHorizontalPadding, (windowW - articleW) / 2)
-        container.containerSize.width = articleW
-        textView.textContainerInset = NSSize(width: sideInset, height: 40)
+        let layout = ColumnLayout(viewWidth: windowW, readingWidth: ThemeManager.shared.readingWidth)
+        container.containerSize.width = layout.columnWidth
+        textView.textContainerInset = NSSize(width: layout.sideInset, height: 40)
         textView.frame.size.width = windowW
-        tocView.isHidden = view.bounds.width < Self.tocVisibilityThreshold
+        tocView.isHidden = !layout.marginFits(Self.tocWidth + Self.tocRightMargin + Self.tocColumnGap)
 
         // A width change re-wraps the text, so any accents drawn against the
         // old line rects now point at the wrong places.
-        if articleW != lastLaidOutArticleWidth {
-            lastLaidOutArticleWidth = articleW
+        if layout.columnWidth != lastLaidOutArticleWidth {
+            lastLaidOutArticleWidth = layout.columnWidth
             gutterView.clear()
         }
     }
@@ -239,6 +245,10 @@ final class MarkdownViewController: NSViewController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
+            // The reading width rides on the same notification as the theme
+            // and fonts. Size the column first, so the re-render fits images
+            // to the new width.
+            self?.layOutColumn()
             self?.rerender()
         }
     }
@@ -628,9 +638,10 @@ final class MarkdownViewController: NSViewController {
 
     private func constrainedImageSize(for image: NSImage) -> NSSize {
         let maxWidth: CGFloat
-        if let containerWidth = textView.textContainer?.containerSize.width {
-            let insets = textView.textContainerInset.width * 2
-            maxWidth = containerWidth - insets
+        if let container = textView.textContainer {
+            // The container is the column itself. The side insets sit
+            // outside it, so only the line fragment padding narrows a line.
+            maxWidth = container.containerSize.width - 2 * container.lineFragmentPadding
         } else {
             maxWidth = 600
         }

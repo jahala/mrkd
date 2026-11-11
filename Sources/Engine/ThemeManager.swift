@@ -110,6 +110,20 @@ final class ThemeManager: NSObject {
         }
     }
 
+    /// How wide the text column may grow. Every window and every Quick
+    /// Look preview reads it from here.
+    var readingWidth: ReadingWidth {
+        get {
+            let stored = CFPreferencesCopyAppValue("readingWidth" as CFString, Self.appID) as? String
+            return stored.flatMap(ReadingWidth.init(rawValue:)) ?? .defaultWidth
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "readingWidth")
+            persistPref("readingWidth", value: newValue.rawValue as CFString)
+            notifyThemeChange()
+        }
+    }
+
     var currentTheme: Theme {
         let themeName = selectedThemeName
         let currentFontSize = fontSize
@@ -143,7 +157,7 @@ final class ThemeManager: NSObject {
     /// Flush any existing UserDefaults values to the on-disk plist via
     /// CFPreferences so the QL extension can read them on first launch.
     private func flushPreferencesToDisk() {
-        let keys = ["selectedTheme", "fontSize", "fontFamily", "codeFontFamily"]
+        let keys = ["selectedTheme", "fontSize", "fontFamily", "codeFontFamily", "readingWidth"]
         for key in keys {
             if let value = UserDefaults.standard.object(forKey: key) {
                 CFPreferencesSetAppValue(key as CFString, value as CFPropertyList, Self.appID)

@@ -16,6 +16,7 @@ Built for reading markdown that something else is writing: open a file and it ke
 - **Mermaid** -- flowcharts, sequence diagrams and the rest, rendered natively via merman and themed to match the document
 - **Themes** -- Built-in themes and import your own from iTerm2 or VS Code
 - **Typography** -- Variable font support with configurable body and code fonts (Geist, Inter, iA Writer Mono, JetBrains Mono, and more)
+- **Reading width** -- Narrow, Standard, Wide or Full Window text column, in every window and in Quick Look
 - **Open With** -- Send the current file to any app on your Mac with one click
 - **Quick Look** -- Preview markdown files in Finder with your selected theme, fonts, and an Open button. The preview can only reach mrkd's fonts when the app is in `/Applications`. mrkd checks at launch that Quick Look uses this copy's preview, and offers to fix it when the preview is switched off, missing, or taken by another copy of mrkd.
 - **Performance** -- Tiered rendering pipeline for files of any size
@@ -60,7 +61,7 @@ mrkd                  # reopen the last document
 cat plan.md | mrkd    # render piped markdown
 ```
 
-**Settings** (`Cmd ,`): Choose a theme, body font, and code font. Import custom themes from iTerm2 `.itermcolors` or VS Code `.json` theme files. The Quick Look section shows whether Finder will use this copy of mrkd for previews, with a button to fix it, and turns the check at launch on or off.
+**Settings** (`Cmd ,`): Choose a theme, body font, font size, reading width, and code font. Import custom themes from iTerm2 `.itermcolors` or VS Code `.json` theme files. The Quick Look section shows whether Finder will use this copy of mrkd for previews, with a button to fix it, and turns the check at launch on or off.
 
 ## License
 
