@@ -137,6 +137,34 @@ enum LauncherInstaller {
         }
     }
 
+    /// The Settings row for the command: a short status, its colour, the
+    /// button that acts on it, and a note when the user must act by hand.
+    /// `statusText` keeps the full sentence, for the row's tooltip.
+    static func settingsStatus(
+        status: LauncherStatus,
+        displayPath: String,
+        pathState: ShellPathState
+    ) -> SettingsStatus {
+        let directory = (displayPath as NSString).deletingLastPathComponent
+        let notOnPath = pathState == .missing
+            ? "\(directory) isn’t on your PATH, so Terminal won’t find mrkd. "
+                + "Add this line to your shell profile: export PATH=\"$HOME/.local/bin:$PATH\""
+            : nil
+        switch status {
+        case .notInstalled:
+            return SettingsStatus(text: "Not installed", tone: .neutral, action: "Install", note: nil)
+        case .installed:
+            return SettingsStatus(text: "Installed", tone: notOnPath == nil ? .good : .attention, action: nil, note: notOnPath)
+        case .outdated:
+            return SettingsStatus(text: "Points to another copy of mrkd", tone: .attention, action: "Update", note: notOnPath)
+        case .occupied:
+            return SettingsStatus(
+                text: "Another file is in the way", tone: .attention, action: nil,
+                note: "Another file is already at \(displayPath). Move it aside, then install."
+            )
+        }
+    }
+
     private static func pathNote(_ state: ShellPathState, displayPath: String) -> String {
         let directory = (displayPath as NSString).deletingLastPathComponent
         switch state {

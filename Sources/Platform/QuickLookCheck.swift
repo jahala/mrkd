@@ -253,27 +253,23 @@ enum QuickLookCheck {
         return CommandLineLauncher.displayPath(URL(fileURLWithPath: app, isDirectory: true), homeDirectory: homeDirectory)
     }
 
-    /// What the Settings row shows: a status of a word or two, and a short
-    /// note when previews can't use mrkd's fonts. The full `statusText` goes
-    /// in the row's tooltip and in the launch alert.
-    struct SettingsLabel: Equatable {
-        let status: String
-        let note: String?
-    }
-
-    static func settingsLabel(_ report: QuickLookReport) -> SettingsLabel {
-        let status: String
+    /// The Settings row: a word or two, its colour, the button that acts on
+    /// it, and a note when previews can't use mrkd's fonts. The full
+    /// `statusText` goes in the row's tooltip and in the launch alert.
+    static func settingsStatus(_ report: QuickLookReport) -> SettingsStatus {
+        let text: String
+        let tone: SettingsStatus.Tone
         switch report.registration {
-        case .healthy: status = "Working"
-        case .notRegistered: status = "Not set up"
-        case .disabled: status = "Turned off"
-        case .otherCopies: status = "Another copy of mrkd may be used"
-        case .couldNotCheck: status = "Couldn’t check"
+        case .healthy: (text, tone) = ("Working", .good)
+        case .notRegistered: (text, tone) = ("Not set up", .attention)
+        case .disabled: (text, tone) = ("Turned off", .attention)
+        case .otherCopies: (text, tone) = ("Another copy of mrkd is used", .attention)
+        case .couldNotCheck: (text, tone) = ("Couldn’t check", .attention)
         }
         let note = report.outsideApplications
-            ? "Previews use the system font until mrkd is in Applications."
+            ? "Previews use the system font until mrkd is in the Applications folder."
             : nil
-        return SettingsLabel(status: status, note: note)
+        return SettingsStatus(text: text, tone: tone, action: actionTitle(report.registration), note: note)
     }
 
     /// The button for a status, or nil when there is nothing a button can do.
